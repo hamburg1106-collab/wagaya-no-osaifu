@@ -1,0 +1,31 @@
+rules_version = '2';
+
+// Firebaseコンソール（ouchi-no-kondate → Firestore → ルール）に貼るもの。
+//
+// このプロジェクトは複数のアプリで共用している。既存のアプリのコレクションを
+// 消すと他のアプリが止まるので、貼る前にコンソール側の中身と見比べること。
+// 下の一覧は 2026-09-20 時点で他アプリが使っているコレクション。
+//
+// 家計簿は kakeibo/{合言葉}/... に入れる。合言葉を知らない人はパスを当てられない。
+// ↓の 'ここに合言葉' は本物の文字列へ置き換える。
+// 本物は 合言葉.txt（Git管理外）に控えてある。このファイルは公開リポジトリに載るので書かない。
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // わが家のお財布（家計簿）
+    match /kakeibo/{code}/{document=**} {
+      allow read, write: if code == 'ここに合言葉';
+    }
+
+    // 献立提案アプリ
+    match /inventory/{doc} { allow read, write: if true; }
+    match /recipes/{doc}   { allow read, write: if true; }
+    match /history/{doc}   { allow read, write: if true; }
+
+    // これ食っていい
+    match /daily/{doc}       { allow read, write: if true; }
+    match /healthUsers/{doc=**} { allow read, write: if true; }
+    match /meals/{doc}       { allow read, write: if true; }
+    match /profile/{doc}     { allow read, write: if true; }
+  }
+}
