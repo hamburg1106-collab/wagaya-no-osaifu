@@ -8,8 +8,14 @@ dist
 dist-ssr
 *.local
 
-# 合言葉の実物。公開リポジトリに載せない
+# 合言葉の実物（Googleログインに移行したので現在は未使用）
 合言葉.txt
+
+# 夫婦2人のFirebase uid。ルールに貼る本物の値
+uid.local.txt
+
+# 見通しロジックの検算スクリプトの出力
+.smoke
 
 # Editor directories and files
 .vscode/*

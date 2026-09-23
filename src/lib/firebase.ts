@@ -1,12 +1,13 @@
 import { initializeApp } from 'firebase/app'
-import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentSingleTabManager,
-} from 'firebase/firestore'
+import { getAuth } from 'firebase/auth'
 
 // ウェブ用のconfigは公開前提の識別子（秘密鍵ではない）。
-// 実際の保護はFirestoreのセキュリティルール（合言葉＝パスの一致）で行う。
+// 実際の保護はFirestoreのセキュリティルールで行う。
+//
+// 当初は合言葉方式（パスを知っている人だけ読める）だったが、家計の貯蓄残高と収入を
+// 扱うようになったのでGoogleログインに変えた。合言葉はリンクで渡すため
+// LINEやメールの履歴に残り、片方の端末だけ無効にできず、変えるにはルールの書き換えが要る。
+// 夫婦2人ぶんのuidをルールに書いて、その2人だけが読み書きできるようにしている。
 //
 // プロジェクトは他のアプリと共用し、コレクション名（kakeibo）で分ける。
 const firebaseConfig = {
@@ -18,15 +19,8 @@ const firebaseConfig = {
   appId: '1:385279752727:web:59068d4c3d5cbd000b3a52',
 }
 
-const app = initializeApp(firebaseConfig)
+// Firestoreはここで触らない。ログインの判定より前に重いSDKを読ませないため、
+// 初期化は db.ts に分けて store.ts から動的importで読む。
+export const app = initializeApp(firebaseConfig)
 
-// persistentLocalCache: 取得済みのデータをIndexedDBに持つ。
-//   → 圏外でも過去の記録が読める。書き込みは復帰時にまとめて送られる。
-// tabManager: 複数タブ同期（persistentMultipleTabManager）はiOS Safariでロックの取得に
-//   失敗することがあり、そうなるとFirestore全体が failed-precondition で動かなくなる。
-//   スマホでタブを2枚開く運用は無いので、単一タブ版にして安定を取る。
-// ignoreUndefinedProperties: 値がundefinedのキーを黙って捨てる（無いと保存時に例外になる）
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }),
-  ignoreUndefinedProperties: true,
-})
+export const auth = getAuth(app)

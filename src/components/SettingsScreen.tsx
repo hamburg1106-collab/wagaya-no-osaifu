@@ -1,16 +1,22 @@
 import { useState } from 'react'
 import { API_KEY_KEY } from '../config'
-import { thisMonth, yen } from '../lib/month'
+import { logout } from '../lib/auth'
+import { thisMonth, todayKey, yen } from '../lib/month'
 import { writeStorage } from '../lib/storage'
-import type { FixedCost } from '../types'
+import type { FixedCost, IncomeSource, Plan } from '../types'
 
 type Props = {
-  code: string
+  email: string
   apiKey: string
   onApiKeyChange: (key: string) => void
   fixedCosts: FixedCost[]
   onSaveFixed: (cost: FixedCost) => void
   onDeleteFixed: (id: string) => void
+  income: IncomeSource[]
+  onSaveIncome: (income: IncomeSource) => void
+  onDeleteIncome: (id: string) => void
+  plan: Plan
+  onSavePlan: (plan: Plan) => void
 }
 
 const newFixed = (): FixedCost => ({
@@ -23,34 +29,31 @@ const newFixed = (): FixedCost => ({
   active: true,
 })
 
+const newIncome = (): IncomeSource => ({
+  id: crypto.randomUUID(),
+  name: '',
+  amount: 0,
+  active: true,
+})
+
 export const SettingsScreen = ({
-  code,
+  email,
   apiKey,
   onApiKeyChange,
   fixedCosts,
   onSaveFixed,
   onDeleteFixed,
+  income,
+  onSaveIncome,
+  onDeleteIncome,
+  plan,
+  onSavePlan,
 }: Props) => {
   const [keyDraft, setKeyDraft] = useState(apiKey)
-  const [editing, setEditing] = useState<FixedCost | null>(null)
-  const [copied, setCopied] = useState(false)
-
-  const shareUrl = `${location.origin}${location.pathname}?code=${encodeURIComponent(code)}`
-
-  const share = async () => {
-    // iPhoneならLINEやメールにそのまま渡せる。使えない環境ではクリップボードに落とす
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: 'わが家のお財布', url: shareUrl })
-        return
-      }
-      await navigator.clipboard.writeText(shareUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      /* 共有をキャンセルしただけなので何もしない */
-    }
-  }
+  const [editingFixed, setEditingFixed] = useState<FixedCost | null>(null)
+  const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null)
+  const [balanceDraft, setBalanceDraft] = useState(String(plan.balance || ''))
+  const [assumedDraft, setAssumedDraft] = useState(String(plan.assumedSpend || ''))
 
   const saveKey = () => {
     const trimmed = keyDraft.trim()
@@ -58,8 +61,129 @@ export const SettingsScreen = ({
     onApiKeyChange(trimmed)
   }
 
+  const saveBalance = () =>
+    onSavePlan({
+      ...plan,
+      balance: Math.round(Number(balanceDraft) || 0),
+      assumedSpend: Math.round(Number(assumedDraft) || 0),
+      balanceAsOf: todayKey(),
+      updatedAt: Date.now(),
+    })
+
+  const balanceDirty =
+    Math.round(Number(balanceDraft) || 0) !== plan.balance ||
+    Math.round(Number(assumedDraft) || 0) !== plan.assumedSpend
+
+  const incomeTotal = income.filter((i) => i.active).reduce((a, i) => a + i.amount, 0)
+
   return (
     <div className="screen">
+      <section className="section">
+        <h2 className="section__title">家計の貯蓄残高</h2>
+        <p className="note">
+          見通しの起点になります。通帳を見て、ざっくりで構いません。
+          <br />
+          月に一度くらい直せば十分です。
+        </p>
+        <label className="field">
+          <span className="field__label">いまの残高</span>
+          <input
+            className="input input--amount"
+            type="number"
+            inputMode="numeric"
+            value={balanceDraft}
+            onChange={(e) => setBalanceDraft(e.target.value)}
+          />
+          {plan.updatedAt > 0 && (
+            <span className="field__hint">{plan.balanceAsOf} 時点として記録されています</span>
+          )}
+        </label>
+        <label className="field">
+          <span className="field__label">月の支出の想定</span>
+          <input
+            className="input input--amount"
+            type="number"
+            inputMode="numeric"
+            value={assumedDraft}
+            onChange={(e) => setAssumedDraft(e.target.value)}
+          />
+          <span className="field__hint">
+            記録が貯まるまでの仮置き。先月ぶんの記録ができると自動で実績に切り替わります
+          </span>
+        </label>
+        <button
+          className="btn btn--primary btn--block"
+          onClick={saveBalance}
+          type="button"
+          disabled={!balanceDirty}
+        >
+          保存
+        </button>
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">収入</h2>
+        <p className="note">
+          月の手取りの平均を入れてください。残業で上下するぶんは均した額で構いません。
+          <br />
+          ボーナスはここではなく「見通し」の予定に入れます。
+        </p>
+        <ul className="list">
+          {income.map((i) => (
+            <li key={i.id}>
+              <button className="row" onClick={() => setEditingIncome(i)} type="button">
+                <span className="row__store">
+                  {i.name}
+                  {!i.active && <span className="tag">停止中</span>}
+                </span>
+                <span className="row__amount">{yen(i.amount)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        {income.length > 0 && (
+          <p className="note note--ok">合計 {yen(incomeTotal)} ／月</p>
+        )}
+        <button
+          className="btn btn--secondary btn--block"
+          onClick={() => setEditingIncome(newIncome())}
+          type="button"
+        >
+          ＋ 収入を足す
+        </button>
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">固定費</h2>
+        <p className="note">
+          毎月かかるぶんを登録しておくと、アプリを開いたときに自動で記録されます。
+          <br />
+          電気や水道のように額が変わるものは「毎月変わる」にしてください。
+        </p>
+        <ul className="list">
+          {fixedCosts.map((f) => (
+            <li key={f.id}>
+              <button className="row" onClick={() => setEditingFixed(f)} type="button">
+                <span className="row__store">
+                  {f.name}
+                  {!f.active && <span className="tag">停止中</span>}
+                </span>
+                <span className="row__amount">
+                  {f.type === 'same' ? yen(f.amount) : '毎月変わる'}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button
+          className="btn btn--secondary btn--block"
+          onClick={() => setEditingFixed(newFixed())}
+          type="button"
+        >
+          ＋ 固定費を足す
+        </button>
+      </section>
+
       <section className="section">
         <h2 className="section__title">この端末のGemini APIキー</h2>
         <p className="note">
@@ -90,68 +214,122 @@ export const SettingsScreen = ({
       </section>
 
       <section className="section">
-        <h2 className="section__title">固定費</h2>
-        <p className="note">
-          毎月かかるぶんを登録しておくと、アプリを開いたときに自動で記録されます。
-          <br />
-          電気や水道のように額が変わるものは「毎月変わる」にしてください。
-        </p>
-        <ul className="list">
-          {fixedCosts.map((f) => (
-            <li key={f.id}>
-              <button className="row" onClick={() => setEditing(f)} type="button">
-                <span className="row__store">
-                  {f.name}
-                  {!f.active && <span className="tag">停止中</span>}
-                </span>
-                <span className="row__amount">
-                  {f.type === 'same' ? yen(f.amount) : '毎月変わる'}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <h2 className="section__title">ログイン</h2>
+        <p className="note">{email} で入っています</p>
         <button
-          className="btn btn--secondary btn--block"
-          onClick={() => setEditing(newFixed())}
+          className="btn btn--ghost btn--block"
+          onClick={() => void logout()}
           type="button"
         >
-          ＋ 固定費を足す
+          ログアウト
         </button>
       </section>
 
-      <section className="section">
-        <h2 className="section__title">相手の端末に入れてもらう</h2>
-        <p className="note">
-          このリンクを送って開いてもらうと、合言葉を打たずに同じ家計簿が見られます。
-        </p>
-        <button className="btn btn--secondary btn--block" onClick={share} type="button">
-          {copied ? 'コピーしました' : 'リンクを送る'}
-        </button>
-        <p className="note">
-          開いたあと、ホーム画面に追加してもらってください。
-          <br />
-          iPhoneはSafariの共有ボタン →「ホーム画面に追加」。
-          <br />
-          Androidは右上のメニュー →「アプリをインストール」。
-        </p>
-      </section>
-
-      {editing && (
+      {editingFixed && (
         <FixedEditor
-          cost={editing}
+          cost={editingFixed}
+          isNew={!fixedCosts.some((f) => f.id === editingFixed.id)}
           onSave={(c) => {
             onSaveFixed(c)
-            setEditing(null)
+            setEditingFixed(null)
           }}
           onDelete={() => {
-            onDeleteFixed(editing.id)
-            setEditing(null)
+            onDeleteFixed(editingFixed.id)
+            setEditingFixed(null)
           }}
-          onCancel={() => setEditing(null)}
-          isNew={!fixedCosts.some((f) => f.id === editing.id)}
+          onCancel={() => setEditingFixed(null)}
         />
       )}
+
+      {editingIncome && (
+        <IncomeEditor
+          income={editingIncome}
+          isNew={!income.some((i) => i.id === editingIncome.id)}
+          onSave={(i) => {
+            onSaveIncome(i)
+            setEditingIncome(null)
+          }}
+          onDelete={() => {
+            onDeleteIncome(editingIncome.id)
+            setEditingIncome(null)
+          }}
+          onCancel={() => setEditingIncome(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+type IncomeEditorProps = {
+  income: IncomeSource
+  isNew: boolean
+  onSave: (income: IncomeSource) => void
+  onDelete: () => void
+  onCancel: () => void
+}
+
+const IncomeEditor = ({ income, isNew, onSave, onDelete, onCancel }: IncomeEditorProps) => {
+  const [draft, setDraft] = useState(income)
+  const patch = (p: Partial<IncomeSource>) => setDraft((d) => ({ ...d, ...p }))
+
+  return (
+    <div className="sheet">
+      <header className="sheet__bar">
+        <button className="btn btn--ghost" onClick={onCancel} type="button">
+          やめる
+        </button>
+        <span className="sheet__title">収入</span>
+        <span className="sheet__spacer" />
+      </header>
+
+      <div className="sheet__body">
+        <label className="field">
+          <span className="field__label">名前</span>
+          <input
+            className="input"
+            value={draft.name}
+            onChange={(e) => patch({ name: e.target.value })}
+            placeholder="例）給料（敏）"
+          />
+        </label>
+
+        <label className="field">
+          <span className="field__label">月の手取り平均</span>
+          <input
+            className="input input--amount"
+            type="number"
+            inputMode="numeric"
+            value={draft.amount || ''}
+            onChange={(e) => patch({ amount: Math.round(Number(e.target.value) || 0) })}
+          />
+        </label>
+
+        <label className="field field--row">
+          <input
+            type="checkbox"
+            checked={draft.active}
+            onChange={(e) => patch({ active: e.target.checked })}
+          />
+          <span>見通しに含める</span>
+          <span className="field__hint">育休などで止まるときは、ここを外す</span>
+        </label>
+      </div>
+
+      <footer className="sheet__foot">
+        {!isNew && (
+          <button className="btn btn--danger" onClick={onDelete} type="button">
+            削除
+          </button>
+        )}
+        <button
+          className="btn btn--primary btn--grow"
+          onClick={() => onSave({ ...draft, name: draft.name.trim() })}
+          type="button"
+          disabled={!draft.name.trim() || draft.amount <= 0}
+        >
+          保存
+        </button>
+      </footer>
     </div>
   )
 }

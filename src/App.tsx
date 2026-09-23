@@ -1,48 +1,56 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { CodeGate } from './components/CodeGate'
+import type { User } from 'firebase/auth'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { FixedPrompt } from './components/FixedPrompt'
 import { HistoryScreen } from './components/HistoryScreen'
 import { HomeScreen } from './components/HomeScreen'
+import { LoginGate } from './components/LoginGate'
+import { OutlookScreen } from './components/OutlookScreen'
 import { ReviewSheet } from './components/ReviewSheet'
 import { SettingsScreen } from './components/SettingsScreen'
 import { TrendScreen } from './components/TrendScreen'
-import { API_KEY_KEY, APP_NAME, CODE_KEY, TAB_KEY } from './config'
+import { API_KEY_KEY, APP_NAME, TAB_KEY } from './config'
+import { watchUser } from './lib/auth'
+import { defaultPlan } from './lib/forecast'
 import { GeminiError, analyzeReceipt } from './lib/gemini'
 import { shrinkImage } from './lib/image'
 import { monthsBetween, thisMonth } from './lib/month'
 import { readStorage, writeStorage } from './lib/storage'
 import {
+  deleteEvent,
   deleteFixedCost,
+  deleteIncome,
   deleteReceipt,
   postFixedMonth,
+  saveEvent,
   saveFixedCost,
+  saveIncome,
+  savePlan,
   saveReceipt,
+  subscribeEvents,
   subscribeFixedCosts,
   subscribeFixedLog,
+  subscribeIncome,
+  subscribePlan,
   subscribeReceipts,
 } from './lib/store'
-import type { FixedCost, Receipt } from './types'
+import type { FixedCost, IncomeSource, LifeEvent, Plan, Receipt } from './types'
 
-type Tab = 'home' | 'history' | 'trend' | 'settings'
+type Tab = 'home' | 'history' | 'trend' | 'outlook' | 'settings'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'home', label: 'ホーム' },
   { id: 'history', label: '履歴' },
   { id: 'trend', label: '推移' },
+  { id: 'outlook', label: '見通し' },
   { id: 'settings', label: '設定' },
 ]
 
 /** 確認画面に出しているもの。fromCameraならレシート由来 */
 type Editing = { receipt: Receipt; fromCamera: boolean; isNew: boolean }
 
-/** 共有リンク（?code=...）で開かれたら合言葉の入力を省く */
-const codeFromUrl = (): string | null => {
-  const code = new URLSearchParams(location.search).get('code')
-  return code?.trim() ? code.trim() : null
-}
-
 const App = () => {
-  const [code, setCode] = useState<string | null>(() => codeFromUrl() ?? readStorage(CODE_KEY))
+  // undefined = 判定中。null = 未ログイン
+  const [user, setUser] = useState<User | null | undefined>(undefined)
   const [apiKey, setApiKey] = useState(() => readStorage(API_KEY_KEY) ?? '')
   const [tab, setTab] = useState<Tab>(() => (readStorage(TAB_KEY) as Tab | null) ?? 'home')
   const [month, setMonth] = useState(thisMonth)
@@ -50,6 +58,9 @@ const App = () => {
   const [receipts, setReceipts] = useState<Receipt[]>([])
   const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([])
   const [postedMonths, setPostedMonths] = useState<Set<string> | null>(null)
+  const [income, setIncome] = useState<IncomeSource[]>([])
+  const [events, setEvents] = useState<LifeEvent[]>([])
+  const [plan, setPlan] = useState<Plan | null>(null)
 
   const [editing, setEditing] = useState<Editing | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -57,28 +68,33 @@ const App = () => {
 
   const fileInput = useRef<HTMLInputElement>(null)
 
-  // URLで渡された合言葉は端末に覚えさせ、クエリは消しておく（共有リンクが履歴に残り続けないように）
-  useEffect(() => {
-    if (!code) return
-    writeStorage(CODE_KEY, code)
-    if (codeFromUrl()) history.replaceState(null, '', location.pathname)
-  }, [code])
+  useEffect(() => watchUser(setUser), [])
 
   useEffect(() => writeStorage(TAB_KEY, tab), [tab])
 
-  const onStoreError = useCallback((e: Error) => {
-    setError(`データを読めませんでした（${e.message}）`)
-  }, [])
-
   useEffect(() => {
-    if (!code) return
+    if (!user) return
+
+    const onStoreError = (e: Error) => {
+      // ルールにuidが登録されていないと permission-denied になる。何が起きたか分かる文にする
+      const denied = e.message.includes('permission') || e.message.includes('insufficient')
+      setError(
+        denied
+          ? 'このアカウントはまだ登録されていません。Firestoreのルールにuidを足してください'
+          : `データを読めませんでした（${e.message}）`,
+      )
+    }
+
     const stop = [
-      subscribeReceipts(code, (list) => setReceipts(list), onStoreError),
-      subscribeFixedCosts(code, setFixedCosts, onStoreError),
-      subscribeFixedLog(code, setPostedMonths, onStoreError),
+      subscribeReceipts(setReceipts, onStoreError),
+      subscribeFixedCosts(setFixedCosts, onStoreError),
+      subscribeFixedLog(setPostedMonths, onStoreError),
+      subscribeIncome(setIncome, onStoreError),
+      subscribeEvents(setEvents, onStoreError),
+      subscribePlan(setPlan, onStoreError),
     ]
     return () => stop.forEach((fn) => fn())
-  }, [code, onStoreError])
+  }, [user])
 
   /**
    * まだ計上していない月のうち、一番古いもの。
@@ -107,21 +123,20 @@ const App = () => {
    */
   const posting = useRef<string | null>(null)
   useEffect(() => {
-    if (!code || !pendingMonth) return
+    if (!user || !pendingMonth) return
     if (pendingTargets.variable.length > 0) return
     if (pendingTargets.same.length === 0) return
     if (posting.current === pendingMonth) return
 
     posting.current = pendingMonth
     void postFixedMonth(
-      code,
       pendingMonth,
       pendingTargets.same.map((f) => ({ name: f.name, amount: f.amount })),
     ).catch(() => {
       // 圏外だと失敗する。次に開いたときに改めて計上されるので、ここでは黙る
       posting.current = null
     })
-  }, [code, pendingMonth, pendingTargets])
+  }, [user, pendingMonth, pendingTargets])
 
   const pickPhoto = () => {
     if (!apiKey) {
@@ -163,11 +178,15 @@ const App = () => {
     }
   }
 
+  const guard = (task: Promise<unknown>, what: string) =>
+    void task.catch((e: unknown) =>
+      setError(`${what}できませんでした（${e instanceof Error ? e.message : String(e)}）`),
+    )
+
   const onSave = async (receipt: Receipt, thenCamera: boolean) => {
-    if (!code) return
     setEditing(null)
     try {
-      await saveReceipt(code, receipt)
+      await saveReceipt(receipt)
     } catch (err) {
       setError(`保存できませんでした（${err instanceof Error ? err.message : String(err)}）`)
       return
@@ -176,17 +195,21 @@ const App = () => {
   }
 
   const onDelete = async (id: string) => {
-    if (!code) return
     if (!confirm('この記録を削除します。よろしいですか？')) return
     setEditing(null)
-    try {
-      await deleteReceipt(code, id)
-    } catch (err) {
-      setError(`削除できませんでした（${err instanceof Error ? err.message : String(err)}）`)
-    }
+    guard(deleteReceipt(id), '削除')
   }
 
-  if (!code) return <CodeGate onDone={setCode} />
+  if (user === undefined) {
+    return (
+      <div className="overlay overlay--plain">
+        <span className="spinner" />
+      </div>
+    )
+  }
+  if (user === null) return <LoginGate />
+
+  const currentPlan = plan ?? defaultPlan()
 
   return (
     <div className="app">
@@ -210,14 +233,30 @@ const App = () => {
           />
         )}
         {tab === 'trend' && <TrendScreen receipts={receipts} />}
+        {tab === 'outlook' && (
+          <OutlookScreen
+            receipts={receipts}
+            income={income}
+            events={events}
+            plan={currentPlan}
+            onSaveEvent={(e) => guard(saveEvent(e), '保存')}
+            onDeleteEvent={(id) => guard(deleteEvent(id), '削除')}
+            onGoSettings={() => setTab('settings')}
+          />
+        )}
         {tab === 'settings' && (
           <SettingsScreen
-            code={code}
+            email={user.email ?? ''}
             apiKey={apiKey}
             onApiKeyChange={setApiKey}
             fixedCosts={fixedCosts}
-            onSaveFixed={(c) => void saveFixedCost(code, c).catch((e: Error) => onStoreError(e))}
-            onDeleteFixed={(id) => void deleteFixedCost(code, id).catch((e: Error) => onStoreError(e))}
+            onSaveFixed={(c) => guard(saveFixedCost(c), '保存')}
+            onDeleteFixed={(id) => guard(deleteFixedCost(id), '削除')}
+            income={income}
+            onSaveIncome={(i) => guard(saveIncome(i), '保存')}
+            onDeleteIncome={(id) => guard(deleteIncome(id), '削除')}
+            plan={currentPlan}
+            onSavePlan={(p) => guard(savePlan(p), '保存')}
           />
         )}
       </main>
@@ -308,11 +347,7 @@ const App = () => {
           month={pendingMonth}
           same={pendingTargets.same}
           variable={pendingTargets.variable}
-          onSubmit={(postings) =>
-            void postFixedMonth(code, pendingMonth, postings).catch((e: Error) =>
-              setError(`固定費を記録できませんでした（${e.message}）`),
-            )
-          }
+          onSubmit={(postings) => guard(postFixedMonth(pendingMonth, postings), '固定費を記録')}
         />
       )}
     </div>

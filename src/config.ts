@@ -1,7 +1,15 @@
 export const APP_NAME = 'わが家のお財布'
 
-/** 合言葉。端末ごとにlocalStorageへ保存する */
-export const CODE_KEY = 'osaifu:code'
+/**
+ * 家計のデータを置く場所。`kakeibo/{HOUSEHOLD_ID}/...`。
+ *
+ * 1世帯しか使わないので固定の文字列でよい。ここは秘密ではなく、
+ * 保護はFirestoreのルールに書いた夫婦2人のuidで行う。
+ */
+export const HOUSEHOLD_ID = 'wagaya'
+
+/** 見通しを何ヶ月先まで出すか */
+export const FORECAST_MONTHS = 60
 
 /** Gemini APIキー。コードには書かず、端末ごとに設定画面から入れてもらう */
 export const API_KEY_KEY = 'osaifu:geminiKey'
