@@ -44,8 +44,14 @@ export const OutlookScreen = ({
 
   const f = buildForecast(receipts, income, events, plan, includeUncertain)
 
-  // 収入も残高も無いうちは、数字を出しても意味が無いので設定へ促す
-  const notReady = f.monthlyIncome === 0 || (plan.balance === 0 && plan.assumedSpend === 0)
+  // 前提が欠けたまま数字を出すと嘘になるので、揃うまでは出さない。
+  // とくに支出が0のまま見通しを描くと、収入がまるごと余剰になって
+  // 「この先ずっと足りています」と極端に甘い答えが出てしまう。
+  const missing: string[] = []
+  if (f.monthlyIncome === 0) missing.push('収入')
+  if (f.monthlySpend === 0) missing.push('月の支出（レシートの記録か、想定額）')
+  if (plan.updatedAt === 0) missing.push('貯蓄残高')
+  const notReady = missing.length > 0
 
   const upcoming = events
     .filter((e) => e.month >= thisMonth())
@@ -57,7 +63,9 @@ export const OutlookScreen = ({
         <div className="verdict verdict--unknown">
           <p className="verdict__head">まだ見通しを出せません</p>
           <p className="verdict__note">
-            設定で「収入」と「貯蓄残高」を入れると、この先いくら残るかが出ます。
+            足りないのは{missing.join('・')}です。
+            <br />
+            設定で入れると、この先いくら残るかが出ます。
           </p>
           <button className="btn btn--primary" onClick={onGoSettings} type="button">
             設定へ

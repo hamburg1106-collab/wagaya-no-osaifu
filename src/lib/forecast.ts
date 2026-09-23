@@ -26,11 +26,17 @@ export type Forecast = {
   actualMonths: number
 }
 
+/**
+ * まだ一度も保存されていない状態の前提。
+ * updatedAt が 0 であることが「未保存」の目印になっている。
+ * ここをDate.now()にすると、残高を入れていないのに入れた扱いになり、
+ * 見通しが「収入まるごと余剰」で描かれて極端に甘く出る。
+ */
 export const defaultPlan = (): Plan => ({
   balance: 0,
   balanceAsOf: todayKey(),
   assumedSpend: 0,
-  updatedAt: Date.now(),
+  updatedAt: 0,
 })
 
 /**

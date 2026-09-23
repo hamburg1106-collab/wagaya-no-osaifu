@@ -10,6 +10,8 @@ type Props = {
   /** 毎月変わるもの。金額を聞く */
   variable: FixedCost[]
   onSubmit: (postings: FixedPosting[]) => void
+  /** 今は答えたくないとき。計上済みにはしないので、次に開いたときまた聞かれる */
+  onLater: () => void
 }
 
 /**
@@ -18,7 +20,7 @@ type Props = {
  * 概算を自動計上すると月合計がずっと嘘になるので、ここだけは手で入れてもらう。
  * 水道は2ヶ月に1回の請求のことがあるため、項目ごとに「今月はなし」で飛ばせる。
  */
-export const FixedPrompt = ({ month, same, variable, onSubmit }: Props) => {
+export const FixedPrompt = ({ month, same, variable, onSubmit, onLater }: Props) => {
   const [amounts, setAmounts] = useState<Record<string, string>>({})
   const [skipped, setSkipped] = useState<Record<string, boolean>>({})
 
@@ -40,8 +42,15 @@ export const FixedPrompt = ({ month, same, variable, onSubmit }: Props) => {
 
   return (
     <div className="sheet">
+      {/*
+        「あとで」が無いと逃げ場がなくなる。固定費を登録した直後にこの画面が出るので、
+        まだ2つ目・3つ目を登録したい途中でも先に答えさせられてしまう。
+        あとで押した月は計上済みにしないため、次に開いたときまた聞かれる。
+      */}
       <header className="sheet__bar">
-        <span className="sheet__spacer" />
+        <button className="btn btn--ghost" onClick={onLater} type="button">
+          あとで
+        </button>
         <span className="sheet__title">{formatMonth(month)}の固定費</span>
         <span className="sheet__spacer" />
       </header>

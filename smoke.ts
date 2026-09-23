@@ -1,6 +1,6 @@
 // 見通しの計算だけを検算する使い捨てスクリプト。
 // 実行: npx vite build --config smoke.vite.config.ts && node .smoke/smoke.js
-import { buildForecast } from './src/lib/forecast'
+import { buildForecast, defaultPlan } from './src/lib/forecast'
 import type { IncomeSource, LifeEvent, Plan, Receipt } from './src/types'
 
 const receipt = (date: string, amount: number): Receipt => ({
@@ -106,7 +106,19 @@ const ok = (label: string, cond: boolean, detail = '') =>
   ok('7月末は110万', f.points[0]?.balance === 1_100_000, `${f.points[0]?.balance}`)
 }
 
-/* 5. 赤字なら必ずいつか尽きる */
+/* 5. 未保存の前提は updatedAt=0。見通し画面がこれで「まだ出せない」を判定している */
+{
+  const d = defaultPlan()
+  ok('未保存の前提はupdatedAt=0', d.updatedAt === 0, `${d.updatedAt}`)
+  ok('未保存なら残高も想定支出も0', d.balance === 0 && d.assumedSpend === 0)
+
+  // 支出の見積りが0のまま見通しを描くと、収入がまるごと余剰になって甘く出る。
+  // 画面側でこれを弾いているが、計算そのものは0を返すことを確認しておく
+  const f = buildForecast([], income, [], d, true)
+  ok('支出0なら余剰=収入まるごと（画面で弾く前提）', f.monthlySpend === 0 && f.monthlySurplus === 400_000)
+}
+
+/* 6. 赤字なら必ずいつか尽きる */
 {
   const poor: IncomeSource[] = [{ id: '1', name: '給料', amount: 100_000, active: true }]
   const f = buildForecast([], poor, [], plan, true)

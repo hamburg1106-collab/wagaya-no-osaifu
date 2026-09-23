@@ -65,6 +65,8 @@ const App = () => {
   const [editing, setEditing] = useState<Editing | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** 固定費の入力を「あとで」にした月。次の起動では覚えていないので、また聞かれる */
+  const [fixedDeferred, setFixedDeferred] = useState<string | null>(null)
 
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -342,13 +344,14 @@ const App = () => {
         />
       )}
 
-      {pendingMonth && pendingTargets.variable.length > 0 && (
+      {pendingMonth && pendingTargets.variable.length > 0 && pendingMonth !== fixedDeferred && (
         <FixedPrompt
           key={pendingMonth}
           month={pendingMonth}
           same={pendingTargets.same}
           variable={pendingTargets.variable}
           onSubmit={(postings) => guard(postFixedMonth(pendingMonth, postings), '固定費を記録')}
+          onLater={() => setFixedDeferred(pendingMonth)}
         />
       )}
     </div>
