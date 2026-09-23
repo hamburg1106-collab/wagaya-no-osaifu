@@ -158,7 +158,10 @@ const App = () => {
     setError(null)
     setBusy('レシートを読み取っています…')
     try {
-      const parsed = await analyzeReceipt(await shrinkImage(file), apiKey)
+      const parsed = await analyzeReceipt(await shrinkImage(file), apiKey, (attempt, total) =>
+        // 混雑で粘っている最中。黙って数秒止まると壊れたように見える
+        setBusy(`混み合っています。もう一度試しています…（${attempt}/${total}）`),
+      )
       setEditing({
         receipt: {
           id: crypto.randomUUID(),

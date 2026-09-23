@@ -1,4 +1,4 @@
-import { CATEGORIES, GEMINI_MODEL } from '../config'
+import { CATEGORIES, FALLBACK_MODEL, GEMINI_MODEL } from '../config'
 import type { Category, ParsedReceipt } from '../types'
 import type { Shrunk } from './image'
 import { todayKey } from './month'
@@ -55,9 +55,19 @@ const PROMPT = `このレシートを読み取って、家計簿に記録する�
 
 export class GeminiError extends Error {}
 
-/** レシート画像を解析する。失敗したらGeminiが返したメッセージをそのまま投げる */
-export const analyzeReceipt = async (image: Shrunk, apiKey: string): Promise<ParsedReceipt> => {
-  const res = await fetch(`${ENDPOINT}/${GEMINI_MODEL}:generateContent`, {
+/**
+ * 混雑・一時障害を表すHTTPステータス。これらは待てば直るので投げ返さない。
+ * 401/403（キーが違う）や404（モデル名が違う）は待っても直らないので即座に見せる。
+ */
+const RETRYABLE = new Set([429, 500, 502, 503, 504])
+
+/** 何ミリ秒待ってから次を試すか。長すぎると撮り直したほうが早くなる */
+const BACKOFF_MS = [1500, 4000]
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+const callGemini = async (model: string, image: Shrunk, apiKey: string) =>
+  fetch(`${ENDPOINT}/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
@@ -76,15 +86,64 @@ export const analyzeReceipt = async (image: Shrunk, apiKey: string): Promise<Par
     }),
   })
 
-  if (!res.ok) {
-    // APIからのメッセージをそのまま見せる。モデル名の変更やキーの権限不足がここで分かる
-    const body: unknown = await res.json().catch(() => null)
-    const message = (body as { error?: { message?: string } } | null)?.error?.message
-    throw new GeminiError(message ?? `解析に失敗しました（HTTP ${res.status}）`)
+/** APIが返したエラー文を取り出す。モデル名の変更やキーの権限不足がここで分かる */
+const errorMessage = async (res: Response): Promise<string> => {
+  const body: unknown = await res.json().catch(() => null)
+  const message = (body as { error?: { message?: string } } | null)?.error?.message
+  return message ?? `解析に失敗しました（HTTP ${res.status}）`
+}
+
+/**
+ * レシート画像を解析する。
+ *
+ * 混雑（503）で落ちたときに撮り直させるのは無駄なので、画像を持ったまま数回粘る。
+ * 最後の1回は FALLBACK_MODEL で投げる。新しいモデルほど混みやすいので、
+ * 一世代前に逃がしたほうが通ることが多い。
+ *
+ * onRetry は「待っています」と画面に出すため。黙って数秒固まると壊れたように見える。
+ */
+export const analyzeReceipt = async (
+  image: Shrunk,
+  apiKey: string,
+  onRetry?: (attempt: number, total: number) => void,
+): Promise<ParsedReceipt> => {
+  const models = [GEMINI_MODEL, GEMINI_MODEL, FALLBACK_MODEL]
+  let lastMessage = ''
+
+  for (let i = 0; i < models.length; i += 1) {
+    if (i > 0) {
+      onRetry?.(i, models.length - 1)
+      await sleep(BACKOFF_MS[i - 1])
+    }
+
+    let res: Response
+    try {
+      res = await callGemini(models[i], image, apiKey)
+    } catch (e) {
+      // 通信が切れた場合。これも待てば直ることがあるので同じ扱いにする
+      lastMessage = e instanceof Error ? e.message : String(e)
+      continue
+    }
+
+    if (res.ok) {
+      const data: unknown = await res.json()
+      return normalize(parseJson(extractText(data)))
+    }
+
+    lastMessage = await errorMessage(res)
+
+    // 1回目の「待っても直らない失敗」はそのまま見せる。
+    // キーが無効・モデル名が違うといった原因がここで分かるので隠さない。
+    //
+    // 2回目以降で同じことが起きても投げ返さない。本命が混雑で落ちたあとに
+    // 差し替え先のモデル名が古くて404、という場合に「モデルが無い」が前に出てしまい、
+    // 本当の原因（混雑）が見えなくなるため。最後のメッセージには残す。
+    if (!RETRYABLE.has(res.status) && i === 0) throw new GeminiError(lastMessage)
   }
 
-  const data: unknown = await res.json()
-  return normalize(parseJson(extractText(data)))
+  throw new GeminiError(
+    `Geminiが混み合っていて読み取れませんでした。少し待ってからもう一度撮ってください（${lastMessage}）`,
+  )
 }
 
 /**

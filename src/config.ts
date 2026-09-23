@@ -28,6 +28,13 @@ export const TAB_KEY = 'osaifu:tab'
 export const GEMINI_MODEL = 'gemini-3.8-flash'
 
 /**
+ * 混雑で本命が返らないときに、最後の1回だけ使うモデル。
+ * 新しいモデルほど混むので、一世代前に逃がす。
+ * レシートの読み取り程度ならこちらでも精度は足りる。
+ */
+export const FALLBACK_MODEL = 'gemini-3.5-flash'
+
+/**
  * 支出のカテゴリ。Geminiにはこの一覧からしか選ばせない（responseSchemaのenum）。
  * 設定画面から増やせるようにはしない。二人で使うと似たカテゴリが増えて集計が崩れるため。
  */
