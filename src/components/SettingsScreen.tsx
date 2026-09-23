@@ -7,6 +7,7 @@ import type { FixedCost, IncomeSource, Plan } from '../types'
 
 type Props = {
   email: string
+  uid: string
   apiKey: string
   onApiKeyChange: (key: string) => void
   fixedCosts: FixedCost[]
@@ -38,6 +39,7 @@ const newIncome = (): IncomeSource => ({
 
 export const SettingsScreen = ({
   email,
+  uid,
   apiKey,
   onApiKeyChange,
   fixedCosts,
@@ -54,6 +56,22 @@ export const SettingsScreen = ({
   const [editingIncome, setEditingIncome] = useState<IncomeSource | null>(null)
   const [balanceDraft, setBalanceDraft] = useState(String(plan.balance || ''))
   const [assumedDraft, setAssumedDraft] = useState(String(plan.assumedSpend || ''))
+  const [copied, setCopied] = useState(false)
+
+  /** 相手にIDを送ってもらうため。共有シートが使えない環境ではクリップボードに落とす */
+  const copyUid = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ text: uid })
+        return
+      }
+      await navigator.clipboard.writeText(uid)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* 共有をキャンセルしただけなので何もしない */
+    }
+  }
 
   const saveKey = () => {
     const trimmed = keyDraft.trim()
@@ -216,11 +234,22 @@ export const SettingsScreen = ({
       <section className="section">
         <h2 className="section__title">ログイン</h2>
         <p className="note">{email} で入っています</p>
-        <button
-          className="btn btn--ghost btn--block"
-          onClick={() => void logout()}
-          type="button"
-        >
+
+        {/*
+          初回セットアップでこのuidをFirestoreのルールに貼る必要がある。
+          Firebaseコンソールでも見られるが、スマホから開くのは面倒なので
+          ここに出して送れるようにしておく。uidは秘密情報ではない。
+        */}
+        <p className="note">
+          セットアップ用のID（uid）
+          <br />
+          <code className="uid">{uid}</code>
+        </p>
+        <button className="btn btn--secondary btn--block" onClick={() => void copyUid()} type="button">
+          {copied ? 'コピーしました' : 'IDをコピー'}
+        </button>
+
+        <button className="btn btn--ghost btn--block" onClick={() => void logout()} type="button">
           ログアウト
         </button>
       </section>

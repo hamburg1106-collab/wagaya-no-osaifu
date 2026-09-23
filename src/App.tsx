@@ -247,6 +247,7 @@ const App = () => {
         {tab === 'settings' && (
           <SettingsScreen
             email={user.email ?? ''}
+            uid={user.uid}
             apiKey={apiKey}
             onApiKeyChange={setApiKey}
             fixedCosts={fixedCosts}

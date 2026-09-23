@@ -209,6 +209,20 @@ body {
   color: var(--accent);
 }
 
+/* セットアップでルールに貼るuid。長いので折り返しを許す */
+.uid {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  word-break: break-all;
+}
+
 .lead {
   margin: 0 0 20px;
   color: var(--muted);
