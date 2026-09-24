@@ -11,8 +11,11 @@ export type Entry = {
   amount: number
 }
 
-/** 記録の出どころ。固定費は自動計上されたものなので履歴で見分けたい */
-export type Source = 'receipt' | 'manual' | 'fixed'
+/**
+ * 記録の出どころ。履歴で見分けたい。
+ * import は Zaim から取り込んだ月ごとの集計で、1ヶ月ぶんが1件にまとまっている。
+ */
+export type Source = 'receipt' | 'manual' | 'fixed' | 'import'
 
 export type Receipt = {
   id: string

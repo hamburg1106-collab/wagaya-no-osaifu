@@ -36,6 +36,7 @@ export const HistoryScreen = ({ receipts, onOpen }: Props) => {
                   <span className="row__store">
                     {r.store}
                     {r.source === 'fixed' && <span className="tag">固定費</span>}
+                    {r.source === 'import' && <span className="tag">1ヶ月ぶん</span>}
                   </span>
                   <span className="row__items">
                     {r.items.map((i) => `${i.category} ${yen(i.amount)}`).join('・')}

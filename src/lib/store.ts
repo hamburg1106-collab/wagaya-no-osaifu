@@ -104,6 +104,37 @@ export const deleteReceipt = async (id: string): Promise<void> => {
   await bundle.fs.deleteDoc(bundle.fs.doc(col(bundle, 'receipts'), id))
 }
 
+/**
+ * Zaimからの取り込みをまとめて書く。
+ * IDが import-YYYY-MM で固定なので、取り込み直しても重複せず上書きになる。
+ * Firestoreのバッチは1回500件までなので、余裕をみて400件ずつ送る。
+ */
+export const importReceipts = async (receipts: Receipt[]): Promise<void> => {
+  const bundle = await getFs()
+  const { fs, db } = bundle
+  for (let i = 0; i < receipts.length; i += 400) {
+    const batch = fs.writeBatch(db)
+    for (const r of receipts.slice(i, i + 400)) {
+      const { id, ...rest } = r
+      batch.set(fs.doc(col(bundle, 'receipts'), id), rest)
+    }
+    await batch.commit()
+  }
+}
+
+/** 取り込んだぶんだけを消す。範囲を間違えて入れ直したいときのため */
+export const deleteImported = async (ids: string[]): Promise<void> => {
+  const bundle = await getFs()
+  const { fs, db } = bundle
+  for (let i = 0; i < ids.length; i += 400) {
+    const batch = fs.writeBatch(db)
+    for (const id of ids.slice(i, i + 400)) {
+      batch.delete(fs.doc(col(bundle, 'receipts'), id))
+    }
+    await batch.commit()
+  }
+}
+
 /* ---------- 固定費 ---------- */
 
 export const subscribeFixedCosts = (

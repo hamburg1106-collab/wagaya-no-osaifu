@@ -234,6 +234,18 @@ body {
   color: var(--muted);
 }
 
+/* 取り込みの手順。番号が要るので ol のまま使う */
+.steps {
+  margin: 0 0 16px;
+  padding-left: 1.3em;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.steps li {
+  margin-bottom: 6px;
+}
+
 .tag {
   margin-left: 6px;
   padding: 1px 6px;

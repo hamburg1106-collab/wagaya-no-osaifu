@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { FixedPrompt } from './components/FixedPrompt'
 import { HistoryScreen } from './components/HistoryScreen'
 import { HomeScreen } from './components/HomeScreen'
+import { ImportSheet } from './components/ImportSheet'
 import { LoginGate } from './components/LoginGate'
 import { OutlookScreen } from './components/OutlookScreen'
 import { ReviewSheet } from './components/ReviewSheet'
@@ -18,8 +19,10 @@ import { readStorage, writeStorage } from './lib/storage'
 import {
   deleteEvent,
   deleteFixedCost,
+  deleteImported,
   deleteIncome,
   deleteReceipt,
+  importReceipts,
   postFixedMonth,
   saveEvent,
   saveFixedCost,
@@ -67,6 +70,7 @@ const App = () => {
   const [error, setError] = useState<string | null>(null)
   /** 固定費の入力を「あとで」にした月。次の起動では覚えていないので、また聞かれる */
   const [fixedDeferred, setFixedDeferred] = useState<string | null>(null)
+  const [importing, setImporting] = useState(false)
 
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -109,6 +113,12 @@ const App = () => {
     const start = active.reduce((min, f) => (f.startMonth < min ? f.startMonth : min), thisMonth())
     return monthsBetween(start, thisMonth()).find((m) => !postedMonths.has(m)) ?? null
   }, [fixedCosts, postedMonths])
+
+  /** Zaimから取り込んだぶん。入れ直しのときに消す対象になる */
+  const importedReceipts = useMemo(
+    () => receipts.filter((r) => r.source === 'import'),
+    [receipts],
+  )
 
   const pendingTargets = useMemo(() => {
     if (!pendingMonth) return { same: [], variable: [] }
@@ -263,6 +273,8 @@ const App = () => {
             onDeleteIncome={(id) => guard(deleteIncome(id), '削除')}
             plan={currentPlan}
             onSavePlan={(p) => guard(savePlan(p), '保存')}
+            importedCount={importedReceipts.length}
+            onOpenImport={() => setImporting(true)}
           />
         )}
       </main>
@@ -344,6 +356,26 @@ const App = () => {
           onSave={(r, thenCamera) => void onSave(r, thenCamera)}
           onDelete={editing.isNew ? undefined : () => void onDelete(editing.receipt.id)}
           onCancel={() => setEditing(null)}
+        />
+      )}
+
+      {importing && (
+        <ImportSheet
+          imported={importedReceipts}
+          onImport={(list) => {
+            setImporting(false)
+            setBusy('取り込んでいます…')
+            void importReceipts(list)
+              .catch((e: unknown) =>
+                setError(`取り込めませんでした（${e instanceof Error ? e.message : String(e)}）`),
+              )
+              .finally(() => setBusy(null))
+          }}
+          onClearImported={(ids) => {
+            setImporting(false)
+            guard(deleteImported(ids), '削除')
+          }}
+          onCancel={() => setImporting(false)}
         />
       )}
 

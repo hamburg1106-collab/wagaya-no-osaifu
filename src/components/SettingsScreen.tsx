@@ -18,6 +18,9 @@ type Props = {
   onDeleteIncome: (id: string) => void
   plan: Plan
   onSavePlan: (plan: Plan) => void
+  /** Zaimから取り込み済みの月数 */
+  importedCount: number
+  onOpenImport: () => void
 }
 
 const newFixed = (): FixedCost => ({
@@ -50,6 +53,8 @@ export const SettingsScreen = ({
   onDeleteIncome,
   plan,
   onSavePlan,
+  importedCount,
+  onOpenImport,
 }: Props) => {
   const [keyDraft, setKeyDraft] = useState(apiKey)
   const [editingFixed, setEditingFixed] = useState<FixedCost | null>(null)
@@ -202,6 +207,21 @@ export const SettingsScreen = ({
         >
           ＋ 固定費を足す
         </button>
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">Zaimから取り込む</h2>
+        <p className="note">
+          今までZaimに貯めた記録から、月ごとの合計だけを取り込みます。
+          <br />
+          入れておくと、見通しの支出が最初から実績になります。
+        </p>
+        <button className="btn btn--secondary btn--block" onClick={onOpenImport} type="button">
+          CSVを取り込む
+        </button>
+        {importedCount > 0 && (
+          <p className="note note--ok">{importedCount}ヶ月ぶんが取り込み済みです</p>
+        )}
       </section>
 
       <section className="section">

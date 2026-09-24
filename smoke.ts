@@ -1,6 +1,7 @@
 // 見通しの計算だけを検算する使い捨てスクリプト。
 // 実行: npx vite build --config smoke.vite.config.ts && node .smoke/smoke.js
 import { buildForecast, defaultPlan } from './src/lib/forecast'
+import { parseCsv, summarizeZaim, toReceipts } from './src/lib/zaimImport'
 import type { IncomeSource, LifeEvent, Plan, Receipt } from './src/types'
 
 const receipt = (date: string, amount: number): Receipt => ({
@@ -125,4 +126,57 @@ const ok = (label: string, cond: boolean, detail = '') =>
   ok('毎月20万の赤字', f.monthlySurplus === -200_000, `${f.monthlySurplus}`)
   // 100万 ÷ 20万 = 5ヶ月で尽きる → 6ヶ月目にマイナス
   ok('2027-03に尽きる', f.shortfallMonth === '2027-03', `${f.shortfallMonth}`)
+}
+
+/* 7. ZaimのCSVを月ごとの集計に変える */
+{
+  // 引用符の中にカンマと改行がある行を混ぜてある
+  const csv = [
+    '日付,方法,カテゴリ,カテゴリの内訳,品目,メモ,お店,収入,支出,振替',
+    '2026-08-03,payment,食費,食料品,,"りんご, みかん",スーパーA,0,1200,0',
+    '2026-08-15,payment,食費,外食,,,店B,0,800,0',
+    '2026-08-20,payment,日用雑貨,消耗品,,,店C,0,500,0',
+    '2026-08-25,payment,水道・光熱,電気,,,,0,9000,0',
+    '2026-08-28,payment,ペット,えさ,,,,0,300,0',
+    '2026-08-31,income,給与,,,,,400000,0,0',
+    '2026-08-31,transfer,現金・カード,,,,,0,50000,0',
+    '2026/9/1,payment,食費,食料品,,"改行を',
+    '含むメモ",スーパーA,0,2000,0',
+  ].join('\n')
+
+  const r = summarizeZaim(csv)
+
+  ok('2ヶ月ぶんにまとまる', r.months.length === 2, `${r.months.length}`)
+
+  const aug = r.months[0]
+  ok('8月になる', aug.month === '2026-08', aug.month)
+  // 食費 1200+800=2000 / 日用品 500 / 固定費 9000 / その他(ペット) 300
+  ok('8月の合計 11,800', aug.total === 11800, `${aug.total}`)
+  ok('食費は2件で2,000', aug.byBucket.get('食費') === 2000, `${aug.byBucket.get('食費')}`)
+  ok('日用雑貨→日用品', aug.byBucket.get('日用品') === 500, `${aug.byBucket.get('日用品')}`)
+  ok('水道・光熱→固定費', aug.byBucket.get('固定費') === 9000, `${aug.byBucket.get('固定費')}`)
+  ok('未知のカテゴリは その他', aug.byBucket.get('その他') === 300, `${aug.byBucket.get('その他')}`)
+  ok('未知のカテゴリを報告する', r.unknown.includes('ペット'), r.unknown.join(','))
+
+  ok('収入は支出に混ぜない', !aug.byBucket.has('収入' as never))
+  ok('収入の月平均を拾う', r.incomeMonthlyAverage === 400000, `${r.incomeMonthlyAverage}`)
+  ok('振替(現金・カード)は除く', aug.total === 11800)
+
+  // 「2026/9/1」のスラッシュ区切りと、引用符内の改行をまたいだ行
+  const sep = r.months[1]
+  ok('スラッシュ区切りも読める', sep.month === '2026-09', sep.month)
+  ok('引用符内の改行をまたげる', sep.total === 2000, `${sep.total}`)
+
+  const receipts = toReceipts(r.months)
+  ok('IDは月で固定（入れ直しで上書き）', receipts[0].id === 'import-2026-08', receipts[0].id)
+  ok('日付は月末', receipts[0].date === '2026-08-31', receipts[0].date)
+  ok('内訳の合計とtotalが一致', receipts[0].items.reduce((a, i) => a + i.amount, 0) === receipts[0].total)
+}
+
+/* 8. CSVの引用符まわり */
+{
+  const rows = parseCsv('a,"b,c",d\r\n1,"2""3",4\r\n')
+  ok('引用符内のカンマ', rows[0][1] === 'b,c', rows[0][1])
+  ok('二重引用符のエスケープ', rows[1][1] === '2"3', rows[1][1])
+  ok('CRLFで2行', rows.length === 2, `${rows.length}`)
 }
