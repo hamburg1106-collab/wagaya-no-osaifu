@@ -203,6 +203,40 @@ const ok = (label: string, cond: boolean, detail = '') =>
   ok('今月ぶんのIDも月で固定', last.id === `import-${cur}`, last.id)
 }
 
+/* 7b. 税カテゴリと、日付を指定した例外 */
+{
+  // 今月かどうかで入れ物が変わるので、両方から探す
+  const pick = (r: ReturnType<typeof summarizeZaim>, month: string) =>
+    [...r.months, ...(r.currentMonth ? [r.currentMonth] : [])].find((m) => m.month === month)
+
+  const r = summarizeZaim(
+    [
+      '日付,カテゴリ,収入,支出',
+      '2026-05-10,税金,0,60000',
+      '2026-05-11,大型出費,0,30000',
+      '2026-05-12,税・社会保険,0,5000',
+    ].join('\n'),
+  )
+  const may = pick(r, '2026-05')
+  ok('税金→税', may?.byBucket.get('税') === 65000, `${may?.byBucket.get('税')}`)
+  ok('大型出費はその他のまま', may?.byBucket.get('その他') === 30000, `${may?.byBucket.get('その他')}`)
+  ok('税は未対応カテゴリにしない', r.unknown.length === 0, r.unknown.join(','))
+
+  // 2026-09-22 の大型出費だけは娯楽・趣味へ。他の日の大型出費は動かさない
+  const ov = summarizeZaim(
+    [
+      '日付,カテゴリ,収入,支出',
+      '2026-09-22,大型出費,0,12000',
+      '2026-09-23,大型出費,0,7000',
+      '2026-09-22,食費,0,1000',
+    ].join('\n'),
+  )
+  const sep = pick(ov, '2026-09')
+  ok('9/22の大型出費は娯楽・趣味', sep?.byBucket.get('娯楽・趣味') === 12000, `${sep?.byBucket.get('娯楽・趣味')}`)
+  ok('9/23の大型出費はその他', sep?.byBucket.get('その他') === 7000, `${sep?.byBucket.get('その他')}`)
+  ok('同じ日の他カテゴリは動かさない', sep?.byBucket.get('食費') === 1000, `${sep?.byBucket.get('食費')}`)
+}
+
 /* 8. CSVの引用符まわり */
 {
   const rows = parseCsv('a,"b,c",d\r\n1,"2""3",4\r\n')

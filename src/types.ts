@@ -2,7 +2,7 @@ import type { CATEGORIES, FIXED_BUCKET } from './config'
 
 export type Category = (typeof CATEGORIES)[number]
 
-/** 集計の入れ物。カテゴリ10個＋固定費の計11本 */
+/** 集計の入れ物。カテゴリ11個＋固定費の計12本 */
 export type Bucket = Category | typeof FIXED_BUCKET
 
 /** レシート1枚の中の1行。「食費 3,800円」のような単位 */

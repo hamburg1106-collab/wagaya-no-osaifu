@@ -29,4 +29,14 @@ console.log('\n=== 金額の内訳（割合）===')
 
 console.log('\n期間:', r.months[0]?.month, '〜', r.months[r.months.length - 1]?.month)
 
+if (r.currentMonth) {
+  console.log(`\n=== 今月（${r.currentMonth.month}）の内訳（割合）===`)
+  const cur = r.currentMonth
+  ;[...cur.byBucket.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([b, v]) => {
+      console.log(`${((v / cur.total) * 100).toFixed(1).padStart(5)}%  ${b}`)
+    })
+}
+
 console.log('\n対応表に無かったぶんの割合:', (r.unknownShare * 100).toFixed(1) + '%')

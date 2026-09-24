@@ -36,7 +36,7 @@ const CATEGORY_MAP: Record<string, Bucket> = {
   エンタメ: '娯楽・趣味',
   交際費: '交際費',
   '美容・衣服': '衣類',
-  税金: 'その他',
+  税金: '税',
   その他: 'その他',
 
   // Zaimの版や設定によって出うる別名。入れておいて損はない
@@ -49,10 +49,30 @@ const CATEGORY_MAP: Record<string, Bucket> = {
   '趣味・娯楽': '娯楽・趣味',
   子育て: '子ども',
   子ども: '子ども',
-  '税・社会保険': 'その他',
+  '税・社会保険': '税',
+  固定資産税: '税',
+  自動車税: '税',
   住宅: FIXED_BUCKET,
   保険: FIXED_BUCKET,
 }
+
+/**
+ * 日付を指定して集計先を変える例外。
+ *
+ * Zaimの「大型出費」は中身がばらばらで、カテゴリ名だけでは行き先が決まらない。
+ * 家具なら「その他」でよいが、レジャーの買い物なら「娯楽・趣味」に入れたい。
+ * 取り込みは月ごとの合計にまとめてしまうので、入ったあとで直せない。
+ * そこで取り込む前に、日付とカテゴリが一致した行だけ行き先を差し替える。
+ *
+ * 手で足す表なので増えたら考え直す。いまは2件だけ。
+ */
+const OVERRIDES: { date: string; category: string; bucket: Bucket }[] = [
+  // 2026-09-22 の大型出費2件。中身は娯楽なので「その他」ではなくこちらへ
+  { date: '2026-09-22', category: '大型出費', bucket: '娯楽・趣味' },
+]
+
+const overrideOf = (date: string, category: string): Bucket | undefined =>
+  OVERRIDES.find((o) => o.date === date && o.category === category)?.bucket
 
 /** 振替など、支出ではない行。合計に入れると二重計上になる */
 const NOT_SPENDING = new Set(['現金・カード', '振替', 'その他振替'])
@@ -171,6 +191,13 @@ const monthOfCell = (cell: string): string | null => {
   return `${m[1]}-${m[2].padStart(2, '0')}`
 }
 
+/** 同じく YYYY-MM-DD を取り出す。日が無い書式なら null（例外表の照合にしか使わない） */
+const dateOfCell = (cell: string): string | null => {
+  const m = cell.trim().match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (!m) return null
+  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`
+}
+
 /** 「1,234」「¥1,234」「-1234」を数値にする */
 const toAmount = (cell: string): number => {
   const n = Number(cell.replace(/[,¥￥\s]/g, ''))
@@ -231,7 +258,8 @@ export const summarizeZaim = (text: string): ImportResult => {
       continue
     }
 
-    const bucket = CATEGORY_MAP[category]
+    const date = dateOfCell(row[iDate] ?? '')
+    const bucket = (date ? overrideOf(date, category) : undefined) ?? CATEGORY_MAP[category]
     spendTotal += spend
     if (!bucket) {
       if (category) unknown.add(category)
