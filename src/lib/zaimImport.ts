@@ -1,6 +1,6 @@
 import { FIXED_BUCKET } from '../config'
 import type { Bucket, Receipt } from '../types'
-import { thisMonth } from './month'
+import { thisMonth, todayKey } from './month'
 
 /**
  * ZaimのCSVを月ごとの集計に変える。
@@ -66,9 +66,20 @@ export type MonthSummary = {
 }
 
 export type ImportResult = {
+  /** 先月まで。そのまま取り込んでよいぶん */
   months: MonthSummary[]
-  /** 読み取った支出の行数 */
+  /**
+   * 今月ぶん。取り込むかどうかを選ばせるので分けて持つ。
+   *
+   * アプリでも今月を記録していると足し合わさって二重になる。
+   * かといって捨ててしまうと、アプリを使い始める前の今月ぶんが抜ける。
+   * どちらが正しいかは使う人しか知らないので、ここでは決めない。
+   */
+  currentMonth: MonthSummary | null
+  /** 読み取った支出の行数（今月を除く） */
   rows: number
+  /** 今月ぶんの支出の行数 */
+  currentRows: number
   /** 振替などで飛ばした行数 */
   skipped: number
   /** 対応表に無かったカテゴリ。「その他」に入れたことを伝えるため */
@@ -186,6 +197,7 @@ export const summarizeZaim = (text: string): ImportResult => {
   const incomeByMonth = new Map<string, number>()
   const unknown = new Set<string>()
   let counted = 0
+  let currentCounted = 0
   let skipped = 0
   let spendTotal = 0
   let unknownTotal = 0
@@ -199,10 +211,8 @@ export const summarizeZaim = (text: string): ImportResult => {
       continue
     }
 
-    // 今月は取り込まない。
-    // このアプリでも今月ぶんを記録しているので、Zaim側と足し合わさって二重になる。
-    // そもそも月の途中なのでZaim側も未完成で、平均の材料にもならない。
-    if (month >= current) {
+    // 来月以降の日付は先送りの予定。実績ではないので数えない
+    if (month > current) {
       skipped += 1
       continue
     }
@@ -232,12 +242,15 @@ export const summarizeZaim = (text: string): ImportResult => {
     const buckets = byMonth.get(month) ?? new Map<Bucket, number>()
     buckets.set(target, (buckets.get(target) ?? 0) + spend)
     byMonth.set(month, buckets)
-    counted += 1
+    if (month === current) currentCounted += 1
+    else counted += 1
   }
 
-  if (counted === 0) throw new ZaimImportError('支出の行が1件も見つかりませんでした')
+  if (counted + currentCounted === 0) {
+    throw new ZaimImportError('支出の行が1件も見つかりませんでした')
+  }
 
-  const months: MonthSummary[] = [...byMonth.entries()]
+  const all: MonthSummary[] = [...byMonth.entries()]
     .map(([month, byBucket]) => ({
       month,
       byBucket,
@@ -245,13 +258,18 @@ export const summarizeZaim = (text: string): ImportResult => {
     }))
     .sort((a, b) => a.month.localeCompare(b.month))
 
+  const months = all.filter((m) => m.month < current)
+  const currentMonth = all.find((m) => m.month === current) ?? null
+
   const incomeTotal = [...incomeByMonth.values()].reduce((a, b) => a + b, 0)
   const incomeMonthlyAverage =
     incomeByMonth.size > 0 ? Math.round(incomeTotal / incomeByMonth.size) : 0
 
   return {
     months,
+    currentMonth,
     rows: counted,
+    currentRows: currentCounted,
     skipped,
     unknown: [...unknown],
     unknownShare: spendTotal > 0 ? unknownTotal / spendTotal : 0,
@@ -264,14 +282,17 @@ export const summarizeZaim = (text: string): ImportResult => {
  *
  * IDを import-YYYY-MM に固定しているので、取り込み直しても増えずに上書きされる。
  * 日付は月末にする。1日にすると履歴の先頭に固まって見づらい。
+ * ただし今月ぶんは月末がまだ来ていないので今日にする（未来の日付を作らない）。
  */
-export const toReceipts = (months: MonthSummary[]): Receipt[] =>
-  months.map((m) => {
+export const toReceipts = (months: MonthSummary[]): Receipt[] => {
+  const today = todayKey()
+  return months.map((m) => {
     const [y, mm] = m.month.split('-').map(Number)
     const lastDay = new Date(y, mm, 0).getDate()
+    const monthEnd = `${m.month}-${String(lastDay).padStart(2, '0')}`
     return {
       id: `import-${m.month}`,
-      date: `${m.month}-${String(lastDay).padStart(2, '0')}`,
+      date: monthEnd > today ? today : monthEnd,
       store: 'Zaimから取り込み',
       total: m.total,
       items: [...m.byBucket.entries()]
@@ -281,3 +302,4 @@ export const toReceipts = (months: MonthSummary[]): Receipt[] =>
       createdAt: Date.now(),
     }
   })
+}

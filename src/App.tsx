@@ -14,7 +14,7 @@ import { watchUser } from './lib/auth'
 import { defaultPlan } from './lib/forecast'
 import { GeminiError, analyzeReceipt } from './lib/gemini'
 import { shrinkImage } from './lib/image'
-import { monthsBetween, thisMonth } from './lib/month'
+import { monthOf, monthsBetween, thisMonth } from './lib/month'
 import { readStorage, writeStorage } from './lib/storage'
 import {
   deleteEvent,
@@ -117,6 +117,16 @@ const App = () => {
   /** Zaimから取り込んだぶん。入れ直しのときに消す対象になる */
   const importedReceipts = useMemo(
     () => receipts.filter((r) => r.source === 'import'),
+    [receipts],
+  )
+
+  /**
+   * 今月ぶんを、このアプリで記録しているか。
+   * Zaimの今月ぶんを取り込むと二重になるので、取り込み画面での既定値に使う。
+   * 取り込んだ記録そのものは数に入れない（それを見て判断するわけではない）。
+   */
+  const hasOwnThisMonth = useMemo(
+    () => receipts.some((r) => r.source !== 'import' && monthOf(r.date) === thisMonth()),
     [receipts],
   )
 
@@ -362,6 +372,7 @@ const App = () => {
       {importing && (
         <ImportSheet
           imported={importedReceipts}
+          hasOwnThisMonth={hasOwnThisMonth}
           onImport={(list) => {
             setImporting(false)
             setBusy('取り込んでいます…')

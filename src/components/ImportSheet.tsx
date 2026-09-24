@@ -7,6 +7,11 @@ import type { Receipt } from '../types'
 type Props = {
   /** すでに取り込み済みの記録。入れ直しのときに消す対象になる */
   imported: Receipt[]
+  /**
+   * 今月ぶんを、このアプリでもう記録しているか。
+   * 記録していれば今月を取り込むと二重になるので、はじめから外しておく。
+   */
+  hasOwnThisMonth: boolean
   onImport: (receipts: Receipt[]) => void
   onClearImported: (ids: string[]) => void
   onCancel: () => void
@@ -19,11 +24,28 @@ type Props = {
  * カテゴリの対応表は当てずっぽうな部分があるので、
  * 中身を見ないまま入れると気づかないうちに集計がずれる。
  */
-export const ImportSheet = ({ imported, onImport, onClearImported, onCancel }: Props) => {
+export const ImportSheet = ({
+  imported,
+  hasOwnThisMonth,
+  onImport,
+  onClearImported,
+  onCancel,
+}: Props) => {
   const fileInput = useRef<HTMLInputElement>(null)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /**
+   * 今月を入れるか。nullは「まだ選んでいない」。
+   * 既定値をstateの初期値にすると読み取り直しのときに引き直せないので、
+   * 選んでいないあいだは毎回アプリの記録から導く。
+   */
+  const [choice, setChoice] = useState<boolean | null>(null)
+  const withCurrent = choice ?? !hasOwnThisMonth
+
+  const months = result
+    ? [...result.months, ...(withCurrent && result.currentMonth ? [result.currentMonth] : [])]
+    : []
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -31,6 +53,7 @@ export const ImportSheet = ({ imported, onImport, onClearImported, onCancel }: P
     if (!file) return
 
     setError(null)
+    setChoice(null)
     setBusy(true)
     try {
       const text = decodeCsv(await file.arrayBuffer())
@@ -76,8 +99,15 @@ export const ImportSheet = ({ imported, onImport, onClearImported, onCancel }: P
               手入力ぶんだけでも、月の支出の目安としては十分使えます。
             </p>
             <p className="note">
-              <strong>今月ぶんは取り込みません。</strong>
-              このアプリでも今月を記録しているので、足し合わさって二重になるためです。
+              {hasOwnThisMonth ? (
+                <>
+                  <strong>今月ぶんは、はじめから外してあります。</strong>
+                  このアプリでも今月を記録しているので、足し合わさって二重になるためです。
+                  入れるかどうかは、読み取ったあとで選べます。
+                </>
+              ) : (
+                <>今月ぶんを入れるかどうかは、読み取ったあとで選べます。</>
+              )}
             </p>
           </>
         )}
@@ -85,23 +115,63 @@ export const ImportSheet = ({ imported, onImport, onClearImported, onCancel }: P
         {result && (
           <>
             <p className="lead">
-              {result.months.length}ヶ月ぶん（{formatMonth(result.months[0].month)}〜
-              {formatMonth(result.months[result.months.length - 1].month)}）が入ります。
+              {months.length === 0 ? (
+                <>入る月がありません。今月を入れるか選んでください。</>
+              ) : (
+                <>
+                  {months.length}ヶ月ぶん（{formatMonth(months[0].month)}〜
+                  {formatMonth(months[months.length - 1].month)}）が入ります。
+                </>
+              )}
             </p>
 
             <ul className="list">
-              {result.months.map((m) => (
+              {months.map((m) => (
                 <li className="row row--plain" key={m.month}>
-                  <span className="row__store">{formatMonth(m.month)}</span>
+                  <span className="row__store">
+                    {formatMonth(m.month)}
+                    {m === result.currentMonth && <span className="row__note">月の途中まで</span>}
+                  </span>
                   <span className="row__amount">{yen(m.total)}</span>
                 </li>
               ))}
             </ul>
 
+            {result.currentMonth && (
+              <section className="section">
+                <h2 className="section__title">今月ぶん</h2>
+                <label className="check">
+                  <input
+                    type="checkbox"
+                    checked={withCurrent}
+                    onChange={(e) => setChoice(e.target.checked)}
+                  />
+                  <span>
+                    {formatMonth(result.currentMonth.month)}ぶん（{yen(result.currentMonth.total)}
+                    ）も取り込む
+                  </span>
+                </label>
+                <p className="note">
+                  {hasOwnThisMonth ? (
+                    <>
+                      今月ぶんは、このアプリにもすでに記録があります。
+                      両方入れると同じ支出を二重に数えることになるので、外しておくのが無難です。
+                    </>
+                  ) : (
+                    <>
+                      今月ぶんは、このアプリにまだ記録がありません。入れておくと今月が空になりません。
+                      これから今月ぶんをこのアプリで記録するなら、そのぶんは二重になります。
+                    </>
+                  )}
+                </p>
+              </section>
+            )}
+
             <section className="section">
               <h2 className="section__title">読み取った内容</h2>
               <p className="note">
-                支出 {result.rows.toLocaleString('ja-JP')}行を集計しました。
+                支出 {(result.rows + (withCurrent ? result.currentRows : 0)).toLocaleString('ja-JP')}
+                行を集計しました。
                 <br />
                 振替や収入など {result.skipped.toLocaleString('ja-JP')}行は、支出ではないので除いています。
               </p>
@@ -176,8 +246,9 @@ export const ImportSheet = ({ imported, onImport, onClearImported, onCancel }: P
             </button>
             <button
               className="btn btn--primary btn--grow"
-              onClick={() => onImport(toReceipts(result.months))}
+              onClick={() => onImport(toReceipts(months))}
               type="button"
+              disabled={months.length === 0}
             >
               取り込む
             </button>

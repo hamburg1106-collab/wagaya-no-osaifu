@@ -1,6 +1,7 @@
 // 見通しの計算だけを検算する使い捨てスクリプト。
 // 実行: npx vite build --config smoke.vite.config.ts && node .smoke/smoke.js
 import { buildForecast, defaultPlan, expandRepeats } from './src/lib/forecast'
+import { shiftMonth, thisMonth, todayKey } from './src/lib/month'
 import { parseCsv, summarizeZaim, toReceipts } from './src/lib/zaimImport'
 import type { IncomeSource, LifeEvent, Plan, Receipt } from './src/types'
 
@@ -133,31 +134,44 @@ const ok = (label: string, cond: boolean, detail = '') =>
 
 /* 7. ZaimのCSVを月ごとの集計に変える */
 {
+  // 月をまたいでも壊れないよう、日付は実行時の月から組み立てる
+  const cur = thisMonth()
+  const prev = shiftMonth(cur, -1)
+  const lastDay = (month: string) => {
+    const [y, m] = month.split('-').map(Number)
+    return String(new Date(y, m, 0).getDate()).padStart(2, '0')
+  }
+
   // 引用符の中にカンマと改行がある行を混ぜてある
   const csv = [
     '日付,方法,カテゴリ,カテゴリの内訳,品目,メモ,お店,収入,支出,振替',
-    '2026-08-03,payment,食費,食料品,,"りんご, みかん",スーパーA,0,1200,0',
-    '2026-08-15,payment,食費,外食,,,店B,0,800,0',
-    '2026-08-20,payment,日用雑貨,消耗品,,,店C,0,500,0',
-    '2026-08-25,payment,水道・光熱,電気,,,,0,9000,0',
-    '2026-08-28,payment,ペット,えさ,,,,0,300,0',
-    '2026-08-31,income,給与,,,,,400000,0,0',
-    '2026-08-31,transfer,現金・カード,,,,,0,50000,0',
-    '2026/9/1,payment,食費,食料品,,"改行を',
+    `${prev}-03,payment,食費,食料品,,"りんご, みかん",スーパーA,0,1200,0`,
+    `${prev}-15,payment,食費,外食,,,店B,0,800,0`,
+    `${prev}-20,payment,日用雑貨,消耗品,,,店C,0,500,0`,
+    `${prev}-25,payment,水道・光熱,電気,,,,0,9000,0`,
+    `${prev}-28,payment,ペット,えさ,,,,0,300,0`,
+    `${prev}-${lastDay(prev)},income,給与,,,,,400000,0,0`,
+    `${prev}-${lastDay(prev)},transfer,現金・カード,,,,,0,50000,0`,
+    `${cur}-01,payment,食費,食料品,,"改行を`,
     '含むメモ",スーパーA,0,2000,0',
   ].join('\n')
 
   const r = summarizeZaim(csv)
 
-  // 2026-09 は「今月」なので取り込まれない（このアプリ側と二重になるため）。
-  // テストが月をまたいでも壊れないよう、件数ではなく中身で確かめる
-  ok('8月は取り込まれる', r.months.some((m) => m.month === '2026-08'))
-  ok('今月（2026-09）は取り込まない', !r.months.some((m) => m.month >= '2026-09'), r.months.map((m) => m.month).join(','))
+  // 今月は months に混ぜず currentMonth に分ける。
+  // アプリ側でも今月を記録していれば二重になるが、まだ記録していなければ入れたい。
+  // どちらかは使う人しか知らないので、取り込むかは画面で選ばせる
+  ok('先月は取り込まれる', r.months.some((m) => m.month === prev))
+  ok('今月は months に入らない', !r.months.some((m) => m.month >= cur), r.months.map((m) => m.month).join(','))
+  ok('今月は currentMonth に分ける', r.currentMonth?.month === cur, `${r.currentMonth?.month}`)
+  ok('今月ぶんの合計 2,000', r.currentMonth?.total === 2000, `${r.currentMonth?.total}`)
+  ok('今月ぶんの行数を数える', r.currentRows === 1, `${r.currentRows}`)
+  ok('今月ぶんは rows に混ぜない', r.rows === 5, `${r.rows}`)
 
   const aug = r.months[0]
-  ok('8月になる', aug.month === '2026-08', aug.month)
+  ok('先月になる', aug.month === prev, aug.month)
   // 食費 1200+800=2000 / 日用品 500 / 固定費 9000 / その他(ペット) 300
-  ok('8月の合計 11,800', aug.total === 11800, `${aug.total}`)
+  ok('先月の合計 11,800', aug.total === 11800, `${aug.total}`)
   ok('食費は2件で2,000', aug.byBucket.get('食費') === 2000, `${aug.byBucket.get('食費')}`)
   ok('日用雑貨→日用品', aug.byBucket.get('日用品') === 500, `${aug.byBucket.get('日用品')}`)
   ok('水道・光熱→固定費', aug.byBucket.get('固定費') === 9000, `${aug.byBucket.get('固定費')}`)
@@ -178,9 +192,15 @@ const ok = (label: string, cond: boolean, detail = '') =>
   ok('未対応ぶんの割合は0', past.unknownShare === 0, `${past.unknownShare}`)
 
   const receipts = toReceipts(r.months)
-  ok('IDは月で固定（入れ直しで上書き）', receipts[0].id === 'import-2026-08', receipts[0].id)
-  ok('日付は月末', receipts[0].date === '2026-08-31', receipts[0].date)
+  ok('IDは月で固定（入れ直しで上書き）', receipts[0].id === `import-${prev}`, receipts[0].id)
+  ok('日付は月末', receipts[0].date === `${prev}-${lastDay(prev)}`, receipts[0].date)
   ok('内訳の合計とtotalが一致', receipts[0].items.reduce((a, i) => a + i.amount, 0) === receipts[0].total)
+
+  // 今月ぶんの日付を月末にすると未来になる。履歴に来ていない日付が並ぶので今日で止める
+  const withCurrent = toReceipts([...r.months, r.currentMonth!])
+  const last = withCurrent[withCurrent.length - 1]
+  ok('今月ぶんの日付は今日まで', last.date === todayKey(), last.date)
+  ok('今月ぶんのIDも月で固定', last.id === `import-${cur}`, last.id)
 }
 
 /* 8. CSVの引用符まわり */

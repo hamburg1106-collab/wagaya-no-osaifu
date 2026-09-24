@@ -422,6 +422,31 @@ body {
   color: var(--muted);
 }
 
+/*
+  取り込みで「今月も入れるか」を選ぶ行。
+  .switch と違って判断の分かれ目なので、本文と同じ大きさで押しやすくする。
+*/
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  font-size: 0.9rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.check input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
 /* 予定の名前をゼロから打たなくて済むようにする候補ボタン */
 .chips {
   display: flex;
@@ -516,6 +541,13 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 「月の途中まで」のような、行の名前に添える但し書き */
+.row__note {
+  margin-left: 8px;
+  font-size: 0.74rem;
+  color: var(--muted);
 }
 
 .row__items {

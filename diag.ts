@@ -7,7 +7,8 @@ const path = process.argv[2]
 const text = decodeCsv(readFileSync(path).buffer as ArrayBuffer)
 const r = summarizeZaim(text)
 
-console.log('集計できた月数:', r.months.length)
+console.log('集計できた月数（今月を除く）:', r.months.length)
+console.log('今月ぶん:', r.currentMonth ? `あり（${r.currentRows}行）` : 'なし')
 console.log('支出として数えた行:', r.rows)
 console.log('飛ばした行:', r.skipped)
 console.log('対応表に無かったカテゴリ:', r.unknown.join(' / ') || 'なし')
