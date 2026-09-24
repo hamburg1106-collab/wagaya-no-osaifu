@@ -40,6 +40,9 @@ const newIncome = (): IncomeSource => ({
   active: true,
 })
 
+/** 家計に入ってくるものの候補。毎回ゼロから打たなくていいように */
+const INCOME_PRESETS = ['敏の拠出', '妻の拠出', '児童手当']
+
 export const SettingsScreen = ({
   email,
   uid,
@@ -147,11 +150,13 @@ export const SettingsScreen = ({
       </section>
 
       <section className="section">
-        <h2 className="section__title">収入</h2>
+        <h2 className="section__title">家計に入るお金</h2>
         <p className="note">
-          月の手取りの平均を入れてください。残業で上下するぶんは均した額で構いません。
+          <strong>給料の額ではなく、家計に入れている額</strong>を入れてください。
           <br />
-          ボーナスはここではなく「見通し」の予定に入れます。
+          二人ぶんの拠出のほか、児童手当のように家計へ直接入るものがあればそれも。
+          <br />
+          臨時のもの（ボーナスからの追加拠出など）は「見通し」の予定に入れます。
         </p>
         <ul className="list">
           {income.map((i) => (
@@ -174,7 +179,7 @@ export const SettingsScreen = ({
           onClick={() => setEditingIncome(newIncome())}
           type="button"
         >
-          ＋ 収入を足す
+          ＋ 入ってくるお金を足す
         </button>
       </section>
 
@@ -335,7 +340,7 @@ const IncomeEditor = ({ income, isNew, onSave, onDelete, onCancel }: IncomeEdito
         <button className="btn btn--ghost" onClick={onCancel} type="button">
           やめる
         </button>
-        <span className="sheet__title">収入</span>
+        <span className="sheet__title">家計に入るお金</span>
         <span className="sheet__spacer" />
       </header>
 
@@ -347,12 +352,22 @@ const IncomeEditor = ({ income, isNew, onSave, onDelete, onCancel }: IncomeEdito
             autoComplete="off"
             value={draft.name}
             onChange={(e) => patch({ name: e.target.value })}
-            placeholder="例）給料（敏）"
+            placeholder="例）敏の拠出"
           />
         </label>
 
+        {isNew && (
+          <div className="chips">
+            {INCOME_PRESETS.map((p) => (
+              <button key={p} className="chip" onClick={() => patch({ name: p })} type="button">
+                {p}
+              </button>
+            ))}
+          </div>
+        )}
+
         <label className="field">
-          <span className="field__label">月の手取り平均</span>
+          <span className="field__label">毎月の額</span>
           <input
             className="input input--amount"
             autoComplete="off"

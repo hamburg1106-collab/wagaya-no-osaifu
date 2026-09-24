@@ -82,6 +82,16 @@ export const OutlookScreen = ({
             月の余剰 {yen(f.monthlySurplus)}
             {f.monthlySurplus < 0 && '（毎月減っています）'}
           </p>
+          {/*
+            ここが赤くなることの実際の意味を書いておく。
+            家計が足りなくなったら夫婦で折半して追加拠出する取り決めなので、
+            「残高が尽きる月」＝「追加拠出が要る月」。数字だけだと繋がらない。
+          */}
+          {f.shortfallMonth && (
+            <p className="verdict__note">
+              このとき、二人で折半して追加で入れる必要が出ます。
+            </p>
+          )}
         </div>
       )}
 
