@@ -347,6 +347,77 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- ホームの円グラフ ---------- */
+
+.donut {
+  margin-bottom: 4px;
+}
+
+/*
+  端末の幅に合わせるが、大きくしすぎない。
+  下の一覧まで一画面に入っていないと、円だけ見て終わってしまう。
+*/
+.donut__svg {
+  display: block;
+  width: min(62vw, 220px);
+  height: auto;
+  margin: 0 auto 18px;
+}
+
+.donut__top {
+  font-size: 15px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.donut__share {
+  font-size: 17px;
+  font-weight: 700;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend__row {
+  display: grid;
+  grid-template-columns: 10px 1fr auto 2.6em;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 2px;
+  font-size: 0.9rem;
+}
+
+.legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.legend__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend__amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.legend__share {
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+}
+
 /* ---------- 見通し ---------- */
 
 .verdict {

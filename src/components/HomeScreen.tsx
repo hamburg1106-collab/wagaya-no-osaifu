@@ -1,6 +1,7 @@
 import { receiptsOfMonth, sumByBucket, sumTotal } from '../lib/aggregate'
 import { formatDay, formatMonth, shiftMonth, thisMonth, yen } from '../lib/month'
 import type { Receipt } from '../types'
+import { Donut } from './Donut'
 
 type Props = {
   receipts: Receipt[]
@@ -16,7 +17,6 @@ export const HomeScreen = ({ receipts, month, onMonthChange, onOpen }: Props) =>
   const ofMonth = receiptsOfMonth(receipts, month)
   const buckets = sumByBucket(ofMonth)
   const total = sumTotal(ofMonth)
-  const max = Math.max(1, ...buckets.map((b) => b.amount))
   const recent = ofMonth.slice(0, RECENT_COUNT)
 
   return (
@@ -51,20 +51,7 @@ export const HomeScreen = ({ receipts, month, onMonthChange, onOpen }: Props) =>
           下のカメラでレシートを撮ってみてください。
         </p>
       ) : (
-        <ul className="bars">
-          {buckets.map((b) => (
-            <li className="bar" key={b.bucket}>
-              <span className="bar__name">{b.bucket}</span>
-              <span className="bar__track">
-                <span
-                  className="bar__fill"
-                  style={{ width: `${(b.amount / max) * 100}%`, background: b.color }}
-                />
-              </span>
-              <span className="bar__amount">{yen(b.amount)}</span>
-            </li>
-          ))}
-        </ul>
+        <Donut buckets={buckets} total={total} />
       )}
 
       {recent.length > 0 && (
