@@ -10,7 +10,13 @@ type Props = {
 }
 
 /** よくある大物。毎回ゼロから打たなくていいように並べておく */
-const PRESETS = ['車検', '固定資産税', '火災保険', '任意保険', '保育料', '出産費用', '旅行']
+const PRESETS = ['車検', '固定資産税', '火災保険', '任意保険', '実家からの贈与', '出産費用', '旅行']
+
+const REPEATS: { value: LifeEvent['repeat']; label: string }[] = [
+  { value: 'once', label: '1回だけ' },
+  { value: 'yearly', label: '毎年' },
+  { value: 'biennial', label: '2年ごと' },
+]
 
 export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props) => {
   const [draft, setDraft] = useState(event)
@@ -63,6 +69,25 @@ export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props)
             onChange={(e) => patch({ month: e.target.value })}
           />
         </label>
+
+        <div className="field">
+          <span className="field__label">繰り返し</span>
+          <div className="choices">
+            {REPEATS.map((r) => (
+              <button
+                key={r.value}
+                className={`btn ${(draft.repeat ?? 'once') === r.value ? 'btn--primary' : 'btn--ghost'}`}
+                onClick={() => patch({ repeat: r.value })}
+                type="button"
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <span className="field__hint">
+            車検は2年ごと、固定資産税や保険は毎年。入れておくと5年先まで自動で並びます
+          </span>
+        </div>
 
         <div className="field">
           <span className="field__label">出ていく／入ってくる</span>

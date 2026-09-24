@@ -3,6 +3,8 @@ import { API_KEY_KEY } from '../config'
 import { logout } from '../lib/auth'
 import { thisMonth, todayKey, yen } from '../lib/month'
 import { writeStorage } from '../lib/storage'
+import type { Theme } from '../lib/theme'
+import { readTheme, saveTheme } from '../lib/theme'
 import type { FixedCost, IncomeSource, Plan } from '../types'
 
 type Props = {
@@ -43,6 +45,12 @@ const newIncome = (): IncomeSource => ({
 /** 家計に入ってくるものの候補。毎回ゼロから打たなくていいように */
 const INCOME_PRESETS = ['敏の拠出', '妻の拠出', '児童手当']
 
+const THEMES: { value: Theme; label: string }[] = [
+  { value: 'auto', label: '自動' },
+  { value: 'light', label: '明るい' },
+  { value: 'dark', label: '暗い' },
+]
+
 export const SettingsScreen = ({
   email,
   uid,
@@ -65,6 +73,7 @@ export const SettingsScreen = ({
   const [balanceDraft, setBalanceDraft] = useState(String(plan.balance || ''))
   const [assumedDraft, setAssumedDraft] = useState(String(plan.assumedSpend || ''))
   const [copied, setCopied] = useState(false)
+  const [theme, setTheme] = useState<Theme>(readTheme)
 
   /** 相手にIDを送ってもらうため。共有シートが使えない環境ではクリップボードに落とす */
   const copyUid = async () => {
@@ -212,6 +221,26 @@ export const SettingsScreen = ({
         >
           ＋ 固定費を足す
         </button>
+      </section>
+
+      <section className="section">
+        <h2 className="section__title">明るさ</h2>
+        <div className="choices">
+          {THEMES.map((t) => (
+            <button
+              key={t.value}
+              className={`btn ${theme === t.value ? 'btn--primary' : 'btn--ghost'}`}
+              onClick={() => {
+                saveTheme(t.value)
+                setTheme(t.value)
+              }}
+              type="button"
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <p className="note">「自動」は端末の設定に合わせます。端末ごとの設定です</p>
       </section>
 
       <section className="section">

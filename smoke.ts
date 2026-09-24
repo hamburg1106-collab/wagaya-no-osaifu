@@ -1,6 +1,6 @@
 // 見通しの計算だけを検算する使い捨てスクリプト。
 // 実行: npx vite build --config smoke.vite.config.ts && node .smoke/smoke.js
-import { buildForecast, defaultPlan } from './src/lib/forecast'
+import { buildForecast, defaultPlan, expandRepeats } from './src/lib/forecast'
 import { parseCsv, summarizeZaim, toReceipts } from './src/lib/zaimImport'
 import type { IncomeSource, LifeEvent, Plan, Receipt } from './src/types'
 
@@ -61,6 +61,7 @@ const ok = (label: string, cond: boolean, detail = '') =>
       month: '2026-12',
       amount: 5_000_000,
       kind: 'spend',
+      repeat: 'once',
       certain: true,
       note: '',
     },
@@ -70,6 +71,7 @@ const ok = (label: string, cond: boolean, detail = '') =>
       month: '2026-12',
       amount: 500_000,
       kind: 'income',
+      repeat: 'once',
       certain: true,
       note: '',
     },
@@ -79,6 +81,7 @@ const ok = (label: string, cond: boolean, detail = '') =>
       month: '2026-11',
       amount: 4_000_000,
       kind: 'spend',
+      repeat: 'once',
       certain: false,
       note: '',
     },
@@ -179,4 +182,51 @@ const ok = (label: string, cond: boolean, detail = '') =>
   ok('引用符内のカンマ', rows[0][1] === 'b,c', rows[0][1])
   ok('二重引用符のエスケープ', rows[1][1] === '2"3', rows[1][1])
   ok('CRLFで2行', rows.length === 2, `${rows.length}`)
+}
+
+/* 9. 繰り返す予定を展開する */
+{
+  const base = { id: 'r1', amount: 1_000_000, kind: 'income' as const, certain: true, note: '' }
+
+  const once = expandRepeats([{ ...base, name: '一度だけ', month: '2027-03', repeat: 'once' }], '2031-09')
+  ok('1回だけなら1件', once.length === 1, `${once.length}`)
+
+  const yearly = expandRepeats([{ ...base, name: '実家からの贈与', month: '2027-03', repeat: 'yearly' }], '2031-09')
+  ok('毎年なら5件', yearly.length === 5, `${yearly.length}`)
+  ok('1回目は2027-03', yearly[0].month === '2027-03', yearly[0].month)
+  ok('2回目は1年後', yearly[1].month === '2028-03', yearly[1].month)
+  ok('範囲を超えない', yearly[yearly.length - 1].month <= '2031-09', yearly[yearly.length - 1].month)
+
+  const car = expandRepeats([{ ...base, name: '車検', month: '2028-09', repeat: 'biennial' }], '2031-09')
+  ok('2年ごとなら2件', car.length === 2, `${car.length}`)
+  ok('2回目は2年後', car[1].month === '2030-09', car[1].month)
+}
+
+/* 10. 繰り返しが残高に効く */
+{
+  // 収入40万 − 支出30万 = 余剰10万。5年で+600万だが、
+  // 毎年150万の出費があると毎年50万ずつ減っていく
+  const yearlyCost: LifeEvent[] = [
+    { id: 'y1', name: '毎年の大物', month: '2026-12', amount: 1_500_000, kind: 'spend', repeat: 'yearly', certain: true, note: '' },
+  ]
+  const f = buildForecast([], income, yearlyCost, plan, true)
+
+  // 起点100万。2026-12に 100万+30万(10-12月) -150万 = -20万 → ここで落ちる
+  ok('繰り返しで不足月が出る', f.shortfallMonth === '2026-12', `${f.shortfallMonth}`)
+
+  // 1回だけなら翌年以降は回復するので、5年後の残高が繰り返し版より大きいはず
+  const onceOnly = buildForecast([], income, [{ ...yearlyCost[0], repeat: 'once' }], plan, true)
+  const last = (x: typeof f) => x.points[x.points.length - 1].balance
+  ok('繰り返しのほうが最終残高は小さい', last(f) < last(onceOnly), `${last(f)} < ${last(onceOnly)}`)
+
+  // 毎年150万 × 5回 = 750万 ぶんの差が出る（範囲内の回数ぶん）
+  const times = f.points.filter((p) => p.events.length > 0).length
+  ok('範囲内で5回起きる', times === 5, `${times}`)
+}
+
+/* 11. repeat が無い古いデータでも落ちない */
+{
+  const legacy = { id: 'old', name: '昔のデータ', month: '2026-12', amount: 100_000, kind: 'spend' as const, certain: true, note: '' } as LifeEvent
+  const got = expandRepeats([legacy], '2031-09')
+  ok('repeat未設定は1回だけ扱い', got.length === 1, `${got.length}`)
 }

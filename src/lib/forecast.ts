@@ -70,6 +70,41 @@ const estimateSpend = (
   return { spend: Math.round(total / months.length), fromActual: true, months: months.length }
 }
 
+/** 繰り返しの間隔（月数）。once は繰り返さない */
+const STEP_MONTHS: Record<LifeEvent['repeat'], number> = {
+  once: 0,
+  yearly: 12,
+  biennial: 24,
+}
+
+/**
+ * 繰り返す予定を、見通しの範囲に入る回数ぶんに展開する。
+ *
+ * 車検は2年ごと、固定資産税や保険は毎年やってくる。1回ぶんしか置けないと
+ * 5年先の見通しが実際よりずっと楽観的になる。
+ */
+export const expandRepeats = (
+  events: LifeEvent[],
+  until: string,
+): { month: string; event: LifeEvent }[] => {
+  const out: { month: string; event: LifeEvent }[] = []
+
+  for (const event of events) {
+    const step = STEP_MONTHS[event.repeat] ?? 0
+    if (step === 0) {
+      out.push({ month: event.month, event })
+      continue
+    }
+    // 月の書式が壊れていても無限に回らないよう、回数でも止める
+    let month = event.month
+    for (let i = 0; month <= until && i < 120; i += 1) {
+      out.push({ month, event })
+      month = shiftMonth(month, step)
+    }
+  }
+  return out
+}
+
 /**
  * 残高の見通しを作る。
  *
@@ -94,8 +129,8 @@ export const buildForecast = (
 
   const used = events.filter((e) => includeUncertain || e.certain)
   const byMonth = new Map<string, LifeEvent[]>()
-  for (const e of used) {
-    byMonth.set(e.month, [...(byMonth.get(e.month) ?? []), e])
+  for (const { month, event } of expandRepeats(used, shiftMonth(thisMonth(), FORECAST_MONTHS))) {
+    byMonth.set(month, [...(byMonth.get(month) ?? []), event])
   }
 
   // 残高を入れた月の翌月から積み上げる。過去日付で入れていればそこから追いつく

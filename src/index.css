@@ -29,20 +29,40 @@
   line-height: 1.6;
 }
 
+/*
+  暗いほうの配色。
+  真っ黒にしない。わずかに茶を含ませると暖色のアクセントが馴染むし、
+  夜に開いても沈んで見えない。一度もっと暗くしたら「暗い」と言われたので、
+  ダークとしては明るめに寄せてある。
+
+  [data-theme] は設定で選んだときだけ付く。付いていなければ端末の設定に従う。
+*/
 @media (prefers-color-scheme: dark) {
-  :root {
-    /* 真っ黒にしない。わずかに茶を含ませると、暖色のアクセントが浮かずに馴染む */
-    --bg: #191512;
-    --card: #241e1a;
-    --line: #362d26;
-    --text: #f2eae3;
-    --muted: #a59385;
-    --accent: #f0845f;
+  :root:not([data-theme='light']) {
+    --bg: #2a231d;
+    --card: #372e26;
+    --line: #4a3d33;
+    --text: #f7f1ea;
+    --muted: #c0ad9d;
+    --accent: #f5926e;
     --accent-ink: #2a1409;
-    --danger: #e8807a;
-    --warn-bg: #33261a;
-    --warn-line: #6b5230;
+    --danger: #f0938d;
+    --warn-bg: #45351f;
+    --warn-line: #7d6437;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #2a231d;
+  --card: #372e26;
+  --line: #4a3d33;
+  --text: #f7f1ea;
+  --muted: #c0ad9d;
+  --accent: #f5926e;
+  --accent-ink: #2a1409;
+  --danger: #f0938d;
+  --warn-bg: #45351f;
+  --warn-line: #7d6437;
 }
 
 * {

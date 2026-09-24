@@ -194,7 +194,11 @@ export const subscribeEvents = (
 ) =>
   subscribeAll<LifeEvent>(
     'events',
-    (list) => list.slice().sort((a, b) => a.month.localeCompare(b.month)),
+    (list) =>
+      list
+        // repeat は後から足した項目。それ以前に保存したものには入っていないので補う
+        .map((e) => ({ ...e, repeat: e.repeat ?? 'once' }))
+        .sort((a, b) => a.month.localeCompare(b.month)),
     onChange,
     onError,
   )

@@ -17,6 +17,9 @@ export const API_KEY_KEY = 'osaifu:geminiKey'
 /** 最後に開いていたタブ。次に開いたとき同じ画面に戻す */
 export const TAB_KEY = 'osaifu:tab'
 
+/** 明るさの好み。端末ごとに持つ（夫婦で別々でよい） */
+export const THEME_KEY = 'osaifu:theme'
+
 /**
  * レシート解析に使うモデル。
  * Flash系には無料枠がある。無料枠では入力がGoogleの製品改善に使われるため、

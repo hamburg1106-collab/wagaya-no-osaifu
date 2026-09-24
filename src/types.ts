@@ -73,6 +73,13 @@ export type LifeEvent = {
   /** 家計が出す額（kind='income' なら受け取る額）。常に正の数 */
   amount: number
   kind: 'spend' | 'income'
+  /**
+   * 繰り返し。once=1回だけ / yearly=毎年 / biennial=2年ごと。
+   *
+   * 車検は2年ごと、固定資産税・火災保険・任意保険・実家からの贈与は毎年。
+   * これが無いと5年ぶんの見通しを作るのに同じ予定を何度も手入力することになる。
+   */
+  repeat: 'once' | 'yearly' | 'biennial'
   /** 確定しているか。未確定のものを外した見通しも見せるために持つ */
   certain: boolean
   note: string

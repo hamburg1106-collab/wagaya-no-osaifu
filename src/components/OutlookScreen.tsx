@@ -20,6 +20,7 @@ const newEvent = (): LifeEvent => ({
   month: thisMonth(),
   amount: 0,
   kind: 'spend',
+  repeat: 'once',
   certain: true,
   note: '',
 })
@@ -53,9 +54,13 @@ export const OutlookScreen = ({
   if (plan.updatedAt === 0) missing.push('貯蓄残高')
   const notReady = missing.length > 0
 
-  const upcoming = events
-    .filter((e) => e.month >= thisMonth())
-    .filter((e) => includeUncertain || e.certain)
+  // 繰り返しを展開したあとの実際の出入りを並べる。
+  // 元の予定だけを出すと「車検 2027年3月」の1行しか見えず、
+  // 2年ごとに来ることが一覧からは読み取れない。
+  const upcoming = f.points
+    .filter((p) => p.month >= thisMonth())
+    .flatMap((p) => p.events.map((event) => ({ month: p.month, event })))
+    .slice(0, 40)
 
   return (
     <div className="screen">
@@ -141,13 +146,15 @@ export const OutlookScreen = ({
           </p>
         ) : (
           <ul className="list">
-            {upcoming.map((e) => (
-              <li key={e.id}>
+            {upcoming.map(({ month, event: e }) => (
+              <li key={`${e.id}-${month}`}>
                 <button className="row" onClick={() => setEditing(e)} type="button">
-                  <span className="row__date">{e.month.replace('-', '/')}</span>
+                  <span className="row__date">{month.replace('-', '/')}</span>
                   <span className="row__store">
                     {e.name}
                     {!e.certain && <span className="tag">未確定</span>}
+                    {e.repeat === 'yearly' && <span className="tag">毎年</span>}
+                    {e.repeat === 'biennial' && <span className="tag">2年ごと</span>}
                   </span>
                   <span className={`row__amount ${e.kind === 'income' ? 'is-income' : ''}`}>
                     {e.kind === 'income' ? '+' : '−'}
