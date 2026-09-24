@@ -68,6 +68,15 @@ export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props)
             value={draft.month}
             onChange={(e) => patch({ month: e.target.value })}
           />
+          {/*
+            時期に幅があるものは、どちらに寄せるかで見通しの向きが変わる。
+            入ってくるものを早めに置くと、まだ無いお金を当てにした絵になる。
+          */}
+          <span className="field__hint">
+            {draft.kind === 'income'
+              ? '「1〜3月のどこか」のように幅があるときは、遅いほう（3月）に置くと安全側になります'
+              : '「春ごろ」のように幅があるときは、早いほうに置くと安全側になります'}
+          </span>
         </label>
 
         <div className="field">

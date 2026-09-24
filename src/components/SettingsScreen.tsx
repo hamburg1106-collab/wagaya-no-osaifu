@@ -42,8 +42,11 @@ const newIncome = (): IncomeSource => ({
   active: true,
 })
 
-/** 家計に入ってくるものの候補。毎回ゼロから打たなくていいように */
-const INCOME_PRESETS = ['敏の拠出', '妻の拠出', '児童手当']
+/**
+ * 家計に入ってくるものの候補。
+ * 児童手当は家計に入れず別口座なので、ここには出さない（入れると二重に数えてしまう）。
+ */
+const INCOME_PRESETS = ['敏の拠出', '妻の拠出']
 
 const THEMES: { value: Theme; label: string }[] = [
   { value: 'auto', label: '自動' },
@@ -163,9 +166,7 @@ export const SettingsScreen = ({
         <p className="note">
           <strong>給料の額ではなく、家計に入れている額</strong>を入れてください。
           <br />
-          二人ぶんの拠出のほか、児童手当のように家計へ直接入るものがあればそれも。
-          <br />
-          臨時のもの（ボーナスからの追加拠出など）は「見通し」の予定に入れます。
+          毎月きまって入るものだけ。年1回のものは「見通し」の予定に入れます。
         </p>
         <ul className="list">
           {income.map((i) => (
