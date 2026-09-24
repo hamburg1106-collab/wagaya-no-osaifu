@@ -68,6 +68,7 @@ export const FixedPrompt = ({ month, same, variable, onSubmit, onLater }: Props)
             <div className="entry">
               <input
                 className="input input--amount entry__amount"
+                autoComplete="off"
                 type="number"
                 inputMode="numeric"
                 placeholder="金額"

@@ -31,6 +31,7 @@ export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props)
           <span className="field__label">何に</span>
           <input
             className="input"
+            autoComplete="off"
             value={draft.name}
             onChange={(e) => patch({ name: e.target.value })}
             placeholder="例）車検"
@@ -56,6 +57,7 @@ export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props)
           <span className="field__label">いつ</span>
           <input
             className="input"
+            autoComplete="off"
             type="month"
             value={draft.month}
             onChange={(e) => patch({ month: e.target.value })}
@@ -91,6 +93,7 @@ export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props)
           <span className="field__label">いくら（家計が出すぶん）</span>
           <input
             className="input input--amount"
+            autoComplete="off"
             type="number"
             inputMode="numeric"
             value={draft.amount || ''}
@@ -115,6 +118,7 @@ export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props)
           <span className="field__label">メモ</span>
           <input
             className="input"
+            autoComplete="off"
             value={draft.note}
             onChange={(e) => patch({ note: e.target.value })}
             placeholder="任意"

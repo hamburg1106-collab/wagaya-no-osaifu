@@ -107,6 +107,7 @@ export const SettingsScreen = ({
           <span className="field__label">いまの残高</span>
           <input
             className="input input--amount"
+            autoComplete="off"
             type="number"
             inputMode="numeric"
             value={balanceDraft}
@@ -120,6 +121,7 @@ export const SettingsScreen = ({
           <span className="field__label">月の支出の想定</span>
           <input
             className="input input--amount"
+            autoComplete="off"
             type="number"
             inputMode="numeric"
             value={assumedDraft}
@@ -209,9 +211,15 @@ export const SettingsScreen = ({
           <br />
           二人ぶん同じキーを貼って構いません。ここに入れたキーはこの端末の中だけに残ります。
         </p>
+        {/*
+          type="password" にしない。パスワード欄がページに1つでもあると、
+          Chromeがこのページをログイン画面だと判断して、金額を打つたびに
+          「パスワードを保存しますか？」を出してくる。
+          家の端末でしか開かないので、平文で置くほうが実害が小さい。
+        */}
         <input
           className="input"
-          type="password"
+          type="text"
           value={keyDraft}
           onChange={(e) => setKeyDraft(e.target.value)}
           placeholder="AIza…"
@@ -316,6 +324,7 @@ const IncomeEditor = ({ income, isNew, onSave, onDelete, onCancel }: IncomeEdito
           <span className="field__label">名前</span>
           <input
             className="input"
+            autoComplete="off"
             value={draft.name}
             onChange={(e) => patch({ name: e.target.value })}
             placeholder="例）給料（敏）"
@@ -326,6 +335,7 @@ const IncomeEditor = ({ income, isNew, onSave, onDelete, onCancel }: IncomeEdito
           <span className="field__label">月の手取り平均</span>
           <input
             className="input input--amount"
+            autoComplete="off"
             type="number"
             inputMode="numeric"
             value={draft.amount || ''}
@@ -390,6 +400,7 @@ const FixedEditor = ({ cost, isNew, onSave, onDelete, onCancel }: EditorProps) =
           <span className="field__label">名前</span>
           <input
             className="input"
+            autoComplete="off"
             value={draft.name}
             onChange={(e) => patch({ name: e.target.value })}
             placeholder="例）土地ローン"
@@ -421,6 +432,7 @@ const FixedEditor = ({ cost, isNew, onSave, onDelete, onCancel }: EditorProps) =
             <span className="field__label">毎月の金額</span>
             <input
               className="input input--amount"
+              autoComplete="off"
               type="number"
               inputMode="numeric"
               value={draft.amount || ''}

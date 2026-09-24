@@ -86,6 +86,7 @@ export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }:
           <span className="field__label">日付</span>
           <input
             className="input"
+            autoComplete="off"
             type="date"
             value={receipt.date}
             onChange={(e) => patch({ date: e.target.value })}
@@ -97,6 +98,7 @@ export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }:
           <span className="field__label">店名</span>
           <input
             className="input"
+            autoComplete="off"
             value={receipt.store}
             onChange={(e) => patch({ store: e.target.value })}
             placeholder="例）○○スーパー"
@@ -107,6 +109,7 @@ export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }:
           <span className="field__label">合計</span>
           <input
             className="input input--amount"
+            autoComplete="off"
             type="number"
             inputMode="numeric"
             value={receipt.total || ''}
@@ -136,6 +139,7 @@ export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }:
               </select>
               <input
                 className="input input--amount entry__amount"
+                autoComplete="off"
                 type="number"
                 inputMode="numeric"
                 value={item.amount || ''}
