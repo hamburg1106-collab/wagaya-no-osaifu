@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { CATEGORIES } from '../config'
 import { sumItems } from '../lib/aggregate'
+import { useCloseOnBack } from '../lib/closeOnBack'
 import { formatDay, todayKey, yen } from '../lib/month'
 import type { Category, Entry, Receipt } from '../types'
 
@@ -31,7 +32,25 @@ const emptyReceipt = (): Receipt => ({
  * 専用の手入力画面を別に作らないのは、項目がまったく同じで二重管理になるため。
  */
 export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }: Props) => {
-  const [receipt, setReceipt] = useState<Receipt>(() => initial ?? emptyReceipt())
+  const [start] = useState<Receipt>(() => initial ?? emptyReceipt())
+  const [receipt, setReceipt] = useState<Receipt>(start)
+
+  /**
+   * 閉じる前に聞くか。撮った直後は手を入れていなくても聞く。
+   * 読み取りに数秒待っているので、1タップで捨てると撮り直しになる
+   */
+  const worthKeeping = fromCamera || JSON.stringify(receipt) !== JSON.stringify(start)
+  const confirmDiscard = () => !worthKeeping || confirm('入力した内容を破棄します。よろしいですか？')
+
+  const cancel = () => {
+    if (confirmDiscard()) onCancel()
+  }
+
+  useCloseOnBack(() => {
+    if (!confirmDiscard()) return false
+    onCancel()
+    return true
+  })
 
   const itemsSum = sumItems(receipt.items)
   const mismatch = receipt.total !== itemsSum
@@ -69,12 +88,14 @@ export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }:
     )
   }
 
-  const canSave = receipt.items.some((it) => it.amount !== 0)
+  // iPhoneの日付欄には「消去」がある。空のまま保存すると、どの月にも数えられず消えて見える
+  const hasDate = /^\d{4}-\d{2}-\d{2}$/.test(receipt.date)
+  const canSave = hasDate && receipt.items.some((it) => it.amount !== 0)
 
   return (
     <div className="sheet">
       <header className="sheet__bar">
-        <button className="btn btn--ghost" onClick={onCancel} type="button">
+        <button className="btn btn--ghost" onClick={cancel} type="button">
           やめる
         </button>
         <span className="sheet__title">{initial ? '内容の確認' : '手で入力'}</span>
@@ -91,7 +112,9 @@ export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }:
             value={receipt.date}
             onChange={(e) => patch({ date: e.target.value })}
           />
-          <span className="field__hint">{formatDay(receipt.date)}</span>
+          <span className={`field__hint ${hasDate ? '' : 'is-error'}`}>
+            {hasDate ? formatDay(receipt.date) : '日付を入れてください'}
+          </span>
         </label>
 
         <label className="field">

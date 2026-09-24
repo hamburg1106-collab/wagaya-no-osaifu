@@ -162,7 +162,13 @@ export const EventEditor = ({ event, isNew, onSave, onDelete, onCancel }: Props)
 
       <footer className="sheet__foot">
         {!isNew && (
-          <button className="btn btn--danger" onClick={onDelete} type="button">
+          <button
+            className="btn btn--danger"
+            onClick={() => {
+              if (confirm(`「${event.name}」を削除します。よろしいですか？`)) onDelete()
+            }}
+            type="button"
+          >
             削除
           </button>
         )}

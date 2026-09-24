@@ -16,6 +16,7 @@ import { GeminiError, analyzeReceipt } from './lib/gemini'
 import { shrinkImage } from './lib/image'
 import { monthOf, monthsBetween, thisMonth } from './lib/month'
 import { readStorage, writeStorage } from './lib/storage'
+import { holdUpdate } from './lib/swUpdate'
 import {
   deleteEvent,
   deleteFixedCost,
@@ -121,12 +122,14 @@ const App = () => {
   )
 
   /**
-   * 今月ぶんを、このアプリで記録しているか。
-   * Zaimの今月ぶんを取り込むと二重になるので、取り込み画面での既定値に使う。
+   * このアプリで記録がある月。
+   * Zaimの同じ月を取り込むと二重になるので、取り込み画面ではじめから外しておくのに使う。
+   * 今月だけでなく過去の月も見る。翌月以降に取り込み直すと、切り替えた月が重なるため。
    * 取り込んだ記録そのものは数に入れない（それを見て判断するわけではない）。
    */
-  const hasOwnThisMonth = useMemo(
-    () => receipts.some((r) => r.source !== 'import' && monthOf(r.date) === thisMonth()),
+  const ownMonths = useMemo(
+    () =>
+      new Set(receipts.filter((r) => r.source !== 'import' && r.date).map((r) => monthOf(r.date))),
     [receipts],
   )
 
@@ -159,6 +162,14 @@ const App = () => {
       posting.current = null
     })
   }, [user, pendingMonth, pendingTargets])
+
+  const showFixedPrompt =
+    pendingMonth !== null && pendingTargets.variable.length > 0 && pendingMonth !== fixedDeferred
+
+  // 入力の途中で更新による読み込み直しが走ると、読み取った内容や打った金額が消える
+  useEffect(() => {
+    holdUpdate(Boolean(editing || importing || busy || showFixedPrompt))
+  }, [editing, importing, busy, showFixedPrompt])
 
   const pickPhoto = () => {
     if (!apiKey) {
@@ -372,7 +383,7 @@ const App = () => {
       {importing && (
         <ImportSheet
           imported={importedReceipts}
-          hasOwnThisMonth={hasOwnThisMonth}
+          ownMonths={ownMonths}
           onImport={(list) => {
             setImporting(false)
             setBusy('取り込んでいます…')
@@ -390,7 +401,7 @@ const App = () => {
         />
       )}
 
-      {pendingMonth && pendingTargets.variable.length > 0 && pendingMonth !== fixedDeferred && (
+      {showFixedPrompt && pendingMonth && (
         <FixedPrompt
           key={pendingMonth}
           month={pendingMonth}

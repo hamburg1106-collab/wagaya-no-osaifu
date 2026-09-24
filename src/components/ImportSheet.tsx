@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { formatMonth, yen } from '../lib/month'
+import { formatMonth, monthOf, thisMonth, yen } from '../lib/month'
 import type { ImportResult } from '../lib/zaimImport'
 import { ZaimImportError, decodeCsv, summarizeZaim, toReceipts } from '../lib/zaimImport'
 import type { Receipt } from '../types'
@@ -8,10 +8,10 @@ type Props = {
   /** すでに取り込み済みの記録。入れ直しのときに消す対象になる */
   imported: Receipt[]
   /**
-   * 今月ぶんを、このアプリでもう記録しているか。
-   * 記録していれば今月を取り込むと二重になるので、はじめから外しておく。
+   * このアプリで記録がある月（YYYY-MM）。
+   * その月を取り込むと二重になるので、はじめから外しておく。
    */
-  hasOwnThisMonth: boolean
+  ownMonths: Set<string>
   onImport: (receipts: Receipt[]) => void
   onClearImported: (ids: string[]) => void
   onCancel: () => void
@@ -26,7 +26,7 @@ type Props = {
  */
 export const ImportSheet = ({
   imported,
-  hasOwnThisMonth,
+  ownMonths,
   onImport,
   onClearImported,
   onCancel,
@@ -36,16 +36,23 @@ export const ImportSheet = ({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   /**
-   * 今月を入れるか。nullは「まだ選んでいない」。
+   * 選ばせる月（今月と、アプリにも記録がある月）を入れるか。キーが無い月は「まだ選んでいない」。
    * 既定値をstateの初期値にすると読み取り直しのときに引き直せないので、
    * 選んでいないあいだは毎回アプリの記録から導く。
    */
-  const [choice, setChoice] = useState<boolean | null>(null)
-  const withCurrent = choice ?? !hasOwnThisMonth
+  const [choice, setChoice] = useState<Record<string, boolean>>({})
+  const included = (month: string) => choice[month] ?? !ownMonths.has(month)
 
-  const months = result
-    ? [...result.months, ...(withCurrent && result.currentMonth ? [result.currentMonth] : [])]
+  const candidates = result
+    ? [...result.months, ...(result.currentMonth ? [result.currentMonth] : [])]
     : []
+  const askable = candidates.filter(
+    (m) => m === result?.currentMonth || ownMonths.has(m.month),
+  )
+  const months = candidates.filter((m) => included(m.month))
+  const withCurrent = result?.currentMonth ? included(result.currentMonth.month) : false
+  const hasOwnThisMonth = ownMonths.has(thisMonth())
+  const importedMonths = new Set(imported.map((r) => monthOf(r.date)))
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -53,7 +60,7 @@ export const ImportSheet = ({
     if (!file) return
 
     setError(null)
-    setChoice(null)
+    setChoice({})
     setBusy(true)
     try {
       const text = decodeCsv(await file.arrayBuffer())
@@ -99,11 +106,11 @@ export const ImportSheet = ({
               手入力ぶんだけでも、月の支出の目安としては十分使えます。
             </p>
             <p className="note">
-              {hasOwnThisMonth ? (
+              {ownMonths.size > 0 ? (
                 <>
-                  <strong>今月ぶんは、はじめから外してあります。</strong>
-                  このアプリでも今月を記録しているので、足し合わさって二重になるためです。
-                  入れるかどうかは、読み取ったあとで選べます。
+                  <strong>このアプリでも記録している月は、はじめから外してあります。</strong>
+                  足し合わさって二重になるためです。
+                  入れるかどうかは、読み取ったあとで月ごとに選べます。
                 </>
               ) : (
                 <>今月ぶんを入れるかどうかは、読み取ったあとで選べます。</>
@@ -116,7 +123,7 @@ export const ImportSheet = ({
           <>
             <p className="lead">
               {months.length === 0 ? (
-                <>入る月がありません。今月を入れるか選んでください。</>
+                <>入る月がありません。下で入れる月を選んでください。</>
               ) : (
                 <>
                   {months.length}ヶ月ぶん（{formatMonth(months[0].month)}〜
@@ -137,33 +144,34 @@ export const ImportSheet = ({
               ))}
             </ul>
 
-            {result.currentMonth && (
+            {askable.length > 0 && (
               <section className="section">
-                <h2 className="section__title">今月ぶん</h2>
-                <label className="check">
-                  <input
-                    type="checkbox"
-                    checked={withCurrent}
-                    onChange={(e) => setChoice(e.target.checked)}
-                  />
-                  <span>
-                    {formatMonth(result.currentMonth.month)}ぶん（{yen(result.currentMonth.total)}
-                    ）も取り込む
-                  </span>
-                </label>
+                <h2 className="section__title">入れるか選ぶ月</h2>
+                {askable.map((m) => (
+                  <label className="check" key={m.month}>
+                    <input
+                      type="checkbox"
+                      checked={included(m.month)}
+                      onChange={(e) => setChoice((c) => ({ ...c, [m.month]: e.target.checked }))}
+                    />
+                    <span>
+                      {formatMonth(m.month)}ぶん（{yen(m.total)}）も取り込む
+                      {ownMonths.has(m.month) && <span className="row__note">アプリにも記録あり</span>}
+                    </span>
+                  </label>
+                ))}
                 <p className="note">
-                  {hasOwnThisMonth ? (
-                    <>
-                      今月ぶんは、このアプリにもすでに記録があります。
-                      両方入れると同じ支出を二重に数えることになるので、外しておくのが無難です。
-                    </>
-                  ) : (
-                    <>
-                      今月ぶんは、このアプリにまだ記録がありません。入れておくと今月が空になりません。
-                      これから今月ぶんをこのアプリで記録するなら、そのぶんは二重になります。
-                    </>
+                  アプリにも記録がある月は、両方入れると同じ支出を二重に数えることになるので、外しておくのが無難です。
+                  {askable.some((m) => importedMonths.has(m.month)) && (
+                    <>外しても、前に取り込んだぶんは消えずに残ります。</>
                   )}
                 </p>
+                {result.currentMonth && !hasOwnThisMonth && (
+                  <p className="note">
+                    今月ぶんは、このアプリにまだ記録がありません。入れておくと今月が空になりません。
+                    これから今月ぶんをこのアプリで記録するなら、そのぶんは二重になります。
+                  </p>
+                )}
               </section>
             )}
 
