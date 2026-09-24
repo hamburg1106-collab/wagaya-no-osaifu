@@ -75,6 +75,10 @@ export const ImportSheet = ({ imported, onImport, onClearImported, onCancel }: P
               <br />
               手入力ぶんだけでも、月の支出の目安としては十分使えます。
             </p>
+            <p className="note">
+              <strong>今月ぶんは取り込みません。</strong>
+              このアプリでも今月を記録しているので、足し合わさって二重になるためです。
+            </p>
           </>
         )}
 
@@ -101,13 +105,25 @@ export const ImportSheet = ({ imported, onImport, onClearImported, onCancel }: P
                 <br />
                 振替や収入など {result.skipped.toLocaleString('ja-JP')}行は、支出ではないので除いています。
               </p>
+              {/*
+                件数で書くと軽く見える。住宅ローンのように数件でも単価の大きいものが
+                落ちていると金額では一気に効くので、割合を前に出して見逃せなくする。
+              */}
               {result.unknown.length > 0 && (
-                <p className="note">
-                  対応表に無いカテゴリがありました。
-                  <strong>「その他」に入れています。</strong>
-                  <br />
-                  {result.unknown.join('・')}
-                </p>
+                <div className="warn">
+                  <p className="warn__text">
+                    対応表に無いカテゴリが、支出の
+                    <strong>{Math.round(result.unknownShare * 100)}%</strong>
+                    を占めています。まとめて「その他」に入りました。
+                  </p>
+                  <p className="warn__note">{result.unknown.join('・')}</p>
+                  {result.unknownShare >= 0.1 && (
+                    <p className="warn__note">
+                      これだけの割合が「その他」になると内訳が読めません。
+                      このまま取り込まず、カテゴリ名を伝えて対応表に足してもらってください。
+                    </p>
+                  )}
+                </div>
               )}
               {result.incomeMonthlyAverage > 0 && (
                 <p className="note note--ok">

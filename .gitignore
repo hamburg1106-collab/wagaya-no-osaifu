@@ -23,3 +23,6 @@ uid.local.txt
 .idea
 .DS_Store
 *.suo
+
+# 取り込みの診断スクリプトの出力
+.diag

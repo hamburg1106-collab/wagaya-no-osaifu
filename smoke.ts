@@ -149,7 +149,10 @@ const ok = (label: string, cond: boolean, detail = '') =>
 
   const r = summarizeZaim(csv)
 
-  ok('2ヶ月ぶんにまとまる', r.months.length === 2, `${r.months.length}`)
+  // 2026-09 は「今月」なので取り込まれない（このアプリ側と二重になるため）。
+  // テストが月をまたいでも壊れないよう、件数ではなく中身で確かめる
+  ok('8月は取り込まれる', r.months.some((m) => m.month === '2026-08'))
+  ok('今月（2026-09）は取り込まない', !r.months.some((m) => m.month >= '2026-09'), r.months.map((m) => m.month).join(','))
 
   const aug = r.months[0]
   ok('8月になる', aug.month === '2026-08', aug.month)
@@ -165,10 +168,14 @@ const ok = (label: string, cond: boolean, detail = '') =>
   ok('収入の月平均を拾う', r.incomeMonthlyAverage === 400000, `${r.incomeMonthlyAverage}`)
   ok('振替(現金・カード)は除く', aug.total === 11800)
 
-  // 「2026/9/1」のスラッシュ区切りと、引用符内の改行をまたいだ行
-  const sep = r.months[1]
-  ok('スラッシュ区切りも読める', sep.month === '2026-09', sep.month)
-  ok('引用符内の改行をまたげる', sep.total === 2000, `${sep.total}`)
+  // スラッシュ区切りと引用符内の改行は、今月除外とは別に単体で確かめる
+  const past = summarizeZaim(
+    ['日付,カテゴリ,収入,支出', '2025/7/1,食費,0,1500', '2025-07-02,クルマ,0,"3,000"'].join('\n'),
+  )
+  ok('スラッシュ区切りも読める', past.months[0].month === '2025-07', past.months[0].month)
+  ok('カンマ入りの金額を読める', past.months[0].total === 4500, `${past.months[0].total}`)
+  ok('クルマ→交通', past.months[0].byBucket.get('交通') === 3000, `${past.months[0].byBucket.get('交通')}`)
+  ok('未対応ぶんの割合は0', past.unknownShare === 0, `${past.unknownShare}`)
 
   const receipts = toReceipts(r.months)
   ok('IDは月で固定（入れ直しで上書き）', receipts[0].id === 'import-2026-08', receipts[0].id)

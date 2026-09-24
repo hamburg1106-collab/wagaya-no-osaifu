@@ -1,5 +1,6 @@
 import { FIXED_BUCKET } from '../config'
 import type { Bucket, Receipt } from '../types'
+import { thisMonth } from './month'
 
 /**
  * ZaimのCSVを月ごとの集計に変える。
@@ -10,30 +11,45 @@ import type { Bucket, Receipt } from '../types'
  */
 
 /**
- * Zaimの既定カテゴリ → このアプリの集計先。
+ * Zaimのカテゴリ → このアプリの集計先。
  *
- * 通信・水道光熱・住宅・保険は固定費にまとめる。このアプリでは
- * それらを固定費として別枠で扱っているので、揃えないと推移が比べられなくなる。
+ * 2026-09-24に実物のCSVで確認した名前に合わせてある。Zaimの既定カテゴリは
+ * 想像と違うものが多く（「自動車」ではなく「クルマ」、「住宅」ではなく「住まい」、
+ * 「衣服・美容」ではなく「美容・衣服」）、最初の対応表では支出の54%が
+ * 「その他」に落ちていた。件数は少なくても住宅ローンのように単価が大きいものが
+ * 混ざるので、金額で見ると一気に崩れる。
+ *
+ * 通信・水道光熱・住まいは固定費にまとめる。このアプリではそれらを固定費として
+ * 別枠で扱っているので、揃えないと推移が比べられなくなる。
  */
 const CATEGORY_MAP: Record<string, Bucket> = {
+  // 実物のCSVにあった名前
   食費: '食費',
   日用雑貨: '日用品',
+  '教育・教養': '子ども',
+  クルマ: '交通',
+  '水道・光熱': FIXED_BUCKET,
+  住まい: FIXED_BUCKET,
+  '医療・保険': '医療・薬',
+  通信: FIXED_BUCKET,
+  大型出費: 'その他',
+  エンタメ: '娯楽・趣味',
+  交際費: '交際費',
+  '美容・衣服': '衣類',
+  税金: 'その他',
+  その他: 'その他',
+
+  // Zaimの版や設定によって出うる別名。入れておいて損はない
   日用品: '日用品',
   交通: '交通',
   自動車: '交通',
   '健康・医療': '医療・薬',
   '医療・健康': '医療・薬',
   '衣服・美容': '衣類',
-  '教育・教養': '娯楽・趣味',
   '趣味・娯楽': '娯楽・趣味',
   子育て: '子ども',
   子ども: '子ども',
-  交際費: '交際費',
-  大型出費: 'その他',
   '税・社会保険': 'その他',
-  その他: 'その他',
-  通信: FIXED_BUCKET,
-  '水道・光熱': FIXED_BUCKET,
   住宅: FIXED_BUCKET,
   保険: FIXED_BUCKET,
 }
@@ -57,6 +73,12 @@ export type ImportResult = {
   skipped: number
   /** 対応表に無かったカテゴリ。「その他」に入れたことを伝えるため */
   unknown: string[]
+  /**
+   * 対応表に無かったぶんが支出全体に占める割合（0〜1）。
+   * 件数だと軽く見えるので金額で出す。住宅ローンのように
+   * 数件でも金額の大きいものが落ちていると、ここが跳ね上がる。
+   */
+  unknownShare: number
   /** 参考表示用。収入は月平均のテンプレなので自動では入れない */
   incomeMonthlyAverage: number
 }
@@ -165,10 +187,22 @@ export const summarizeZaim = (text: string): ImportResult => {
   const unknown = new Set<string>()
   let counted = 0
   let skipped = 0
+  let spendTotal = 0
+  let unknownTotal = 0
+
+  const current = thisMonth()
 
   for (const row of rows.slice(1)) {
     const month = monthOfCell(row[iDate] ?? '')
     if (!month) {
+      skipped += 1
+      continue
+    }
+
+    // 今月は取り込まない。
+    // このアプリでも今月ぶんを記録しているので、Zaim側と足し合わさって二重になる。
+    // そもそも月の途中なのでZaim側も未完成で、平均の材料にもならない。
+    if (month >= current) {
       skipped += 1
       continue
     }
@@ -188,7 +222,11 @@ export const summarizeZaim = (text: string): ImportResult => {
     }
 
     const bucket = CATEGORY_MAP[category]
-    if (!bucket && category) unknown.add(category)
+    spendTotal += spend
+    if (!bucket) {
+      if (category) unknown.add(category)
+      unknownTotal += spend
+    }
 
     const target = bucket ?? 'その他'
     const buckets = byMonth.get(month) ?? new Map<Bucket, number>()
@@ -211,7 +249,14 @@ export const summarizeZaim = (text: string): ImportResult => {
   const incomeMonthlyAverage =
     incomeByMonth.size > 0 ? Math.round(incomeTotal / incomeByMonth.size) : 0
 
-  return { months, rows: counted, skipped, unknown: [...unknown], incomeMonthlyAverage }
+  return {
+    months,
+    rows: counted,
+    skipped,
+    unknown: [...unknown],
+    unknownShare: spendTotal > 0 ? unknownTotal / spendTotal : 0,
+    incomeMonthlyAverage,
+  }
 }
 
 /**
