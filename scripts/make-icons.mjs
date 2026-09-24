@@ -9,8 +9,8 @@ import sharp from 'sharp'
 const here = dirname(fileURLToPath(import.meta.url))
 const publicDir = resolve(here, '..', 'public')
 
-const GREEN = '#2f7a5e'
-const LEAF = '#4fa583'
+const GREEN = '#d96f4c'
+const LEAF = '#e8a06a'
 const FG = '#ffffff'
 
 const svg = (size) => {

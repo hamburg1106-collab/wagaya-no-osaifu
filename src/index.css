@@ -1,21 +1,27 @@
 /* 夜に布団で開くこともあるので、端末の設定に合わせて暗い配色にも切り替える */
 :root {
-  --bg: #f7f5f0;
+  --bg: #fbf6f0;
   --card: #ffffff;
-  --line: #e4e0d7;
-  --text: #22201c;
-  --muted: #6f6a60;
-  --accent: #2f7a5e;
+  --line: #ede2d6;
+  --text: #2b2320;
+  --muted: #7a6a5f;
+  --accent: #d96f4c;
   --accent-ink: #ffffff;
   --danger: #b3453d;
-  --warn-bg: #fdf3e0;
-  --warn-line: #e6c88a;
+  --warn-bg: #fdf2e3;
+  --warn-line: #e8c48f;
 
   color-scheme: light dark;
+  /*
+    丸ゴシックにして柔らかさを出す。
+    iPhoneには「ヒラギノ丸ゴ」が標準で入っているのでそれを使い、
+    無い端末（Android）だけ main.tsx からWebフォントを読む。
+  */
   font-family:
+    'Zen Maru Gothic',
+    'Hiragino Maru Gothic ProN',
     system-ui,
     -apple-system,
-    'Hiragino Kaku Gothic ProN',
     'Noto Sans JP',
     sans-serif;
   /* iPhoneで入力欄をタップしたときの自動ズームを防ぐ大きさ */
@@ -25,16 +31,17 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #17181a;
-    --card: #212326;
-    --line: #34373b;
-    --text: #e9e7e3;
-    --muted: #9b968d;
-    --accent: #4fa583;
-    --accent-ink: #10221b;
-    --danger: #d9706a;
-    --warn-bg: #33291a;
-    --warn-line: #6b5730;
+    /* 真っ黒にしない。わずかに茶を含ませると、暖色のアクセントが浮かずに馴染む */
+    --bg: #191512;
+    --card: #241e1a;
+    --line: #362d26;
+    --text: #f2eae3;
+    --muted: #a59385;
+    --accent: #f0845f;
+    --accent-ink: #2a1409;
+    --danger: #e8807a;
+    --warn-bg: #33261a;
+    --warn-line: #6b5230;
   }
 }
 

@@ -19,8 +19,8 @@ export default defineConfig({
         scope: '.',
         display: 'standalone',
         orientation: 'portrait',
-        background_color: '#f7f5f0',
-        theme_color: '#2f7a5e',
+        background_color: '#fbf6f0',
+        theme_color: '#d96f4c',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -32,6 +32,23 @@ export default defineConfig({
         // Firestore SDKは動的importで後から読むので、
         // オフライン起動でもチャンクが取れるようプリキャッシュ対象に入れておく。
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        // 丸ゴシックはAndroidでだけ読む。圏外でも崩れないようキャッシュしておく
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\//,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-css' },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-files',
+              expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 365 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
       },
     }),
   ],

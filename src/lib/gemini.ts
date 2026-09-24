@@ -58,8 +58,13 @@ export class GeminiError extends Error {}
 /**
  * 混雑・一時障害を表すHTTPステータス。これらは待てば直るので投げ返さない。
  * 401/403（キーが違う）や404（モデル名が違う）は待っても直らないので即座に見せる。
+ *
+ * 429（RESOURCE_EXHAUSTED＝使いすぎ）はここに入れない。
+ * 1分あたりや1日あたりの上限なので、数秒待って投げ直しても通らないうえ、
+ * 再試行のぶんだけ余計に枠を食う。しかも「混んでいる」と伝えると
+ * 原因を取り違えたまま撮り直しを繰り返すことになる。
  */
-const RETRYABLE = new Set([429, 500, 502, 503, 504])
+const RETRYABLE = new Set([500, 502, 503, 504])
 
 /** 何ミリ秒待ってから次を試すか。長すぎると撮り直したほうが早くなる */
 const BACKOFF_MS = [1500, 4000]
@@ -109,6 +114,8 @@ export const analyzeReceipt = async (
 ): Promise<ParsedReceipt> => {
   const models = [GEMINI_MODEL, GEMINI_MODEL, FALLBACK_MODEL]
   let lastMessage = ''
+  /** 直近のHTTPステータス。0 は通信そのものが失敗したとき */
+  let lastStatus = -1
 
   for (let i = 0; i < models.length; i += 1) {
     if (i > 0) {
@@ -122,6 +129,7 @@ export const analyzeReceipt = async (
     } catch (e) {
       // 通信が切れた場合。これも待てば直ることがあるので同じ扱いにする
       lastMessage = e instanceof Error ? e.message : String(e)
+      lastStatus = 0
       continue
     }
 
@@ -130,7 +138,11 @@ export const analyzeReceipt = async (
       return normalize(parseJson(extractText(data)))
     }
 
-    lastMessage = await errorMessage(res)
+    lastMessage = `${models[i]} / HTTP ${res.status} / ${await errorMessage(res)}`
+    lastStatus = res.status
+
+    // 使いすぎは待っても直らないので、その場で正しい原因を伝える
+    if (res.status === 429) throw new GeminiError(quotaMessage(lastMessage))
 
     // 1回目の「待っても直らない失敗」はそのまま見せる。
     // キーが無効・モデル名が違うといった原因がここで分かるので隠さない。
@@ -142,9 +154,20 @@ export const analyzeReceipt = async (
   }
 
   throw new GeminiError(
-    `Geminiが混み合っていて読み取れませんでした。少し待ってからもう一度撮ってください（${lastMessage}）`,
+    lastStatus === 0
+      ? `通信できませんでした。電波を確認してもう一度撮ってください（${lastMessage}）`
+      : `Geminiが混み合っていて読み取れませんでした。少し待ってからもう一度撮ってください（${lastMessage}）`,
   )
 }
+
+/**
+ * 429 は「混雑」ではなく「使いすぎ」。
+ * このキーは「これ食っていい」と共用しているので、そちらの利用分も同じ枠を食う。
+ */
+const quotaMessage = (detail: string): string =>
+  '今日ぶん（または1分あたり）の無料枠を使い切ったようです。' +
+  '少し時間をあけるか、日をまたぐと戻ります。' +
+  `「これ食っていい」と同じキーなら、そちらの利用分も同じ枠から引かれます（${detail}）`
 
 /**
  * candidates[0].content.parts から本文を取り出す。

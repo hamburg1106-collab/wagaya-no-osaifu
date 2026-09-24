@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2f7a5e"/>
-      <stop offset="1" stop-color="#4fa583"/>
+      <stop offset="0" stop-color="#d96f4c"/>
+      <stop offset="1" stop-color="#e8a06a"/>
     </linearGradient>
   </defs>
   <rect width="64" height="64" rx="14.08" fill="url(#g)"/>
@@ -11,5 +11,5 @@
   <!-- かぶせのフタ。本体より少し濃くして段差を出す -->
   <path d="M14.08 26.88 h35.84 v-3.20 a4.48 4.48 0 0 0 -4.48 -4.48 h-26.88 a4.48 4.48 0 0 0 -4.48 4.48 Z" fill="#ffffff" opacity="0.72"/>
   <!-- 留め具 -->
-  <circle cx="42.24" cy="33.28" r="3.52" fill="#2f7a5e"/>
+  <circle cx="42.24" cy="33.28" r="3.52" fill="#d96f4c"/>
 </svg>
