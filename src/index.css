@@ -182,6 +182,13 @@ body {
   cursor: pointer;
 }
 
+/* リンクをボタンの見た目で出すとき（LINEから外のブラウザへ開き直す） */
+a.btn {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}
+
 .btn:disabled {
   opacity: 0.4;
 }
