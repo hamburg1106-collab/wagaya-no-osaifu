@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { categoryOfFixed } from '../lib/fixed'
 import { formatMonth, yen } from '../lib/month'
 import type { FixedPosting } from '../lib/store'
 import type { FixedCost } from '../types'
@@ -28,10 +29,14 @@ export const FixedPrompt = ({ month, same, variable, onSubmit, onLater }: Props)
 
   const submit = () => {
     const postings: FixedPosting[] = [
-      ...same.map((f) => ({ name: f.name, amount: f.amount })),
+      ...same.map((f) => ({ name: f.name, amount: f.amount, category: categoryOfFixed(f) })),
       ...variable
         .filter((f) => !skipped[f.id])
-        .map((f) => ({ name: f.name, amount: Math.round(Number(amounts[f.id]) || 0) }))
+        .map((f) => ({
+          name: f.name,
+          amount: Math.round(Number(amounts[f.id]) || 0),
+          category: categoryOfFixed(f),
+        }))
         .filter((p) => p.amount > 0),
     ]
     onSubmit(postings)

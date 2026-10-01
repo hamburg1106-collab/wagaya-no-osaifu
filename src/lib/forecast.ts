@@ -1,5 +1,5 @@
-import { FORECAST_MONTHS } from '../config'
-import type { IncomeSource, LifeEvent, Plan, Receipt } from '../types'
+import { FORECAST_MONTHS, SOLAR } from '../config'
+import type { IncomeRecord, IncomeSource, LifeEvent, Plan, Receipt } from '../types'
 import { sumTotal } from './aggregate'
 import { monthOf, monthsBetween, shiftMonth, thisMonth, todayKey } from './month'
 
@@ -18,6 +18,10 @@ export type Forecast = {
   /** 初めて残高がマイナスになる月。最後まで持つなら null */
   shortfallMonth: string | null
   monthlyIncome: number
+  /** 売電の実績の月平均。記録が無ければ0 */
+  monthlySolar: number
+  /** 売電の平均に使った月数 */
+  solarMonths: number
   monthlySpend: number
   monthlySurplus: number
   /** 支出に実績を使えたか。falseなら手置きの想定額を使っている */
@@ -70,6 +74,28 @@ const estimateSpend = (
   return { spend: Math.round(total / months.length), fromActual: true, months: months.length }
 }
 
+/**
+ * 売電の月平均を見積もる。
+ *
+ * 支出と同じく今月は数えない（まだ入っていないだけの月を0として数えてしまうため）。
+ * 支出と違って「記録がある月」ではなく「最初の記録から先月まで」の月数で割る。
+ * 売電は2ヶ月に1回の入金のこともあり、入った月だけで割ると倍に見えるため。
+ */
+const estimateSolar = (records: IncomeRecord[]): { solar: number; months: number } => {
+  const current = thisMonth()
+  const past = records.filter((r) => r.kind === SOLAR && monthOf(r.date) < current)
+  if (past.length === 0) return { solar: 0, months: 0 }
+
+  const first = past.reduce((min, r) => (monthOf(r.date) < min ? monthOf(r.date) : min), current)
+  const lastMonth = shiftMonth(current, -1)
+  const earliest = shiftMonth(lastMonth, -(LOOKBACK - 1))
+  const span = monthsBetween(first > earliest ? first : earliest, lastMonth)
+  const total = past
+    .filter((r) => span.includes(monthOf(r.date)))
+    .reduce((acc, r) => acc + r.amount, 0)
+  return { solar: Math.round(total / span.length), months: span.length }
+}
+
 /** 繰り返しの間隔（月数）。once は繰り返さない */
 const STEP_MONTHS: Record<LifeEvent['repeat'], number> = {
   once: 0,
@@ -115,6 +141,7 @@ export const expandRepeats = (
 export const buildForecast = (
   receipts: Receipt[],
   income: IncomeSource[],
+  incomeRecords: IncomeRecord[],
   events: LifeEvent[],
   plan: Plan,
   /** 未確定のイベントを含めるか */
@@ -125,7 +152,8 @@ export const buildForecast = (
     .reduce((acc, i) => acc + Math.max(0, i.amount), 0)
 
   const { spend, fromActual, months: actualMonths } = estimateSpend(receipts, plan)
-  const monthlySurplus = monthlyIncome - spend
+  const { solar, months: solarMonths } = estimateSolar(incomeRecords)
+  const monthlySurplus = monthlyIncome + solar - spend
 
   const used = events.filter((e) => includeUncertain || e.certain)
   const byMonth = new Map<string, LifeEvent[]>()
@@ -156,6 +184,8 @@ export const buildForecast = (
     points,
     shortfallMonth,
     monthlyIncome,
+    monthlySolar: solar,
+    solarMonths,
     monthlySpend: spend,
     monthlySurplus,
     spendFromActual: fromActual,

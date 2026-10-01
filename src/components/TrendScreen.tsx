@@ -1,5 +1,5 @@
-import { BUCKET_COLORS, CATEGORIES, FIXED_BUCKET } from '../config'
-import { receiptsOfMonth, sumByBucket, sumTotal } from '../lib/aggregate'
+import { BUCKET_COLORS } from '../config'
+import { BUCKET_ORDER, receiptsOfMonth, sumByBucket, sumTotal } from '../lib/aggregate'
 import { formatMonth, shiftMonth, thisMonth, yen } from '../lib/month'
 import type { Bucket, Receipt } from '../types'
 
@@ -18,8 +18,8 @@ export const TrendScreen = ({ receipts }: Props) => {
   })
   const max = Math.max(1, ...rows.map((r) => r.total))
 
-  /** 積み上げ棒の並び。固定費を左に固定する */
-  const order: Bucket[] = [FIXED_BUCKET, ...CATEGORIES]
+  /** 積み上げ棒の並び。月をまたいで比べるので、カテゴリの定義順で固定する */
+  const order: Bucket[] = BUCKET_ORDER
 
   if (rows.every((r) => r.total === 0)) {
     return (

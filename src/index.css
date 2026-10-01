@@ -241,6 +241,11 @@ a.btn {
   flex: 1;
 }
 
+/* 手入力の先頭にある「支出 | 収入」の切り替え */
+.choices--kind {
+  margin-bottom: 18px;
+}
+
 .note {
   margin: 4px 0 10px;
   font-size: 0.85rem;
@@ -319,6 +324,17 @@ a.btn {
   text-align: center;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/* 合計の下に添える「うち固定費」「収入」 */
+.total__sub {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin: -14px 0 16px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .bars {

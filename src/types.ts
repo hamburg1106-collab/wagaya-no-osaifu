@@ -1,14 +1,20 @@
-import type { CATEGORIES, FIXED_BUCKET } from './config'
+import type { CATEGORIES, INCOME_KINDS, LEGACY_FIXED } from './config'
 
 export type Category = (typeof CATEGORIES)[number]
 
-/** 集計の入れ物。カテゴリ11個＋固定費の計12本 */
-export type Bucket = Category | typeof FIXED_BUCKET
+/** 集計の入れ物。カテゴリに加えて、以前の「固定費」カテゴリが古い記録に残っている */
+export type Bucket = Category | typeof LEGACY_FIXED
 
 /** レシート1枚の中の1行。「食費 3,800円」のような単位 */
 export type Entry = {
   category: Bucket
   amount: number
+  /**
+   * 固定費の印。Zaimから取り込んだ住まい・水道光熱・通信に付く。
+   * アプリが自動計上した固定費は記録ごと source='fixed' で分かるので付けなくてよいが、付けても害はない。
+   * 無いときはフィールドごと省く（Firestoreは undefined を書けない）。
+   */
+  fixed?: true
 }
 
 /**
@@ -41,6 +47,28 @@ export type FixedCost = {
   /** 計上を始める月（YYYY-MM）。これより前の月には遡らない */
   startMonth: string
   active: boolean
+  /**
+   * 計上するカテゴリ。おむつサブスクなら「子ども」、土地ローンなら「住まい」。
+   * 2026-10-01より前に作ったものには無いので、名前から推測して補う（lib/fixed.ts）
+   */
+  category?: Category
+}
+
+export type IncomeKind = (typeof INCOME_KINDS)[number]
+
+/**
+ * 記録した収入。売電のように毎月入るが額が変わるもの。
+ * 支出（Receipt）とは別のコレクションに置く。混ぜると、支出を合計する箇所すべてで
+ * 収入を除き忘れる危険があるため。
+ */
+export type IncomeRecord = {
+  id: string
+  /** YYYY-MM-DD */
+  date: string
+  kind: IncomeKind
+  amount: number
+  note: string
+  createdAt: number
 }
 
 /**

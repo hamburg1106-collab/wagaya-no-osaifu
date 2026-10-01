@@ -1,5 +1,13 @@
-import { FIXED_BUCKET, HOUSEHOLD_ID } from '../config'
-import type { FixedCost, IncomeSource, LifeEvent, Plan, Receipt } from '../types'
+import { HOUSEHOLD_ID } from '../config'
+import type {
+  Category,
+  FixedCost,
+  IncomeRecord,
+  IncomeSource,
+  LifeEvent,
+  Plan,
+  Receipt,
+} from '../types'
 
 /**
  * Firestore SDKは重い（gzipで約150KB）ので、静的importせず動的importで後から読む。
@@ -105,11 +113,11 @@ export const deleteReceipt = async (id: string): Promise<void> => {
 }
 
 /**
- * Zaimからの取り込みをまとめて書く。
- * IDが import-YYYY-MM で固定なので、取り込み直しても重複せず上書きになる。
+ * 記録をまとめて書く。Zaimからの取り込みと、古い「固定費」カテゴリの付け替えに使う。
+ * 取り込みはIDが import-YYYY-MM で固定なので、取り込み直しても重複せず上書きになる。
  * Firestoreのバッチは1回500件までなので、余裕をみて400件ずつ送る。
  */
-export const importReceipts = async (receipts: Receipt[]): Promise<void> => {
+export const saveReceipts = async (receipts: Receipt[]): Promise<void> => {
   const bundle = await getFs()
   const { fs, db } = bundle
   for (let i = 0; i < receipts.length; i += 400) {
@@ -186,6 +194,35 @@ export const deleteIncome = async (id: string): Promise<void> => {
   await bundle.fs.deleteDoc(bundle.fs.doc(col(bundle, 'income'), id))
 }
 
+/* ---------- 収入の記録（売電など） ---------- */
+
+// 上の「収入」（家計に入るお金）は見通しの前提で、毎月の記録ではない。
+// こちらは鉛筆マークから入れる実際の入金
+export const subscribeIncomeRecords = (
+  onChange: (list: IncomeRecord[]) => void,
+  onError: (error: Error) => void,
+) =>
+  subscribeAll<IncomeRecord>(
+    'incomeRecords',
+    (list) =>
+      list
+        .slice()
+        .sort((a, b) => (a.date === b.date ? b.createdAt - a.createdAt : b.date < a.date ? -1 : 1)),
+    onChange,
+    onError,
+  )
+
+export const saveIncomeRecord = async (record: IncomeRecord): Promise<void> => {
+  const bundle = await getFs()
+  const { id, ...rest } = record
+  await bundle.fs.setDoc(bundle.fs.doc(col(bundle, 'incomeRecords'), id), rest)
+}
+
+export const deleteIncomeRecord = async (id: string): Promise<void> => {
+  const bundle = await getFs()
+  await bundle.fs.deleteDoc(bundle.fs.doc(col(bundle, 'incomeRecords'), id))
+}
+
 /* ---------- ライフイベント ---------- */
 
 export const subscribeEvents = (
@@ -238,7 +275,7 @@ export const savePlan = async (plan: Plan): Promise<void> => {
 /* ---------- 固定費の自動計上 ---------- */
 
 /** 固定費として計上する1件分 */
-export type FixedPosting = { name: string; amount: number }
+export type FixedPosting = { name: string; amount: number; category: Category }
 
 /**
  * 指定した月の固定費をまとめて計上する。
@@ -271,7 +308,7 @@ export const postFixedMonth = async (month: string, postings: FixedPosting[]): P
         date,
         store: p.name,
         total: p.amount,
-        items: [{ category: FIXED_BUCKET, amount: p.amount }],
+        items: [{ category: p.category, amount: p.amount, fixed: true }],
         source: 'fixed',
         createdAt: Date.now(),
       })

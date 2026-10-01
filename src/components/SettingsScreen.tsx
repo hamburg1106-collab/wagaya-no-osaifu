@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { API_KEY_KEY } from '../config'
+import { API_KEY_KEY, CATEGORIES } from '../config'
 import { logout } from '../lib/auth'
+import { categoryOfFixed } from '../lib/fixed'
 import { thisMonth, todayKey, yen } from '../lib/month'
 import { writeStorage } from '../lib/storage'
 import type { Theme } from '../lib/theme'
 import { readTheme, saveTheme } from '../lib/theme'
-import type { FixedCost, IncomeSource, Plan } from '../types'
+import type { Category, FixedCost, IncomeSource, Plan } from '../types'
 
 type Props = {
   email: string
@@ -198,6 +199,8 @@ export const SettingsScreen = ({
         <p className="note">
           毎月かかるぶんを登録しておくと、アプリを開いたときに自動で記録されます。
           <br />
+          記録は選んだカテゴリに入り、ホームでは「固定費を除く」で外して見られます。
+          <br />
           電気や水道のように額が変わるものは「毎月変わる」にしてください。
         </p>
         <ul className="list">
@@ -206,6 +209,7 @@ export const SettingsScreen = ({
               <button className="row" onClick={() => setEditingFixed(f)} type="button">
                 <span className="row__store">
                   {f.name}
+                  <span className="tag">{categoryOfFixed(f)}</span>
                   {!f.active && <span className="tag">停止中</span>}
                 </span>
                 <span className="row__amount">
@@ -478,6 +482,24 @@ const FixedEditor = ({ cost, isNew, onSave, onDelete, onCancel }: EditorProps) =
           />
         </label>
 
+        <label className="field">
+          <span className="field__label">カテゴリ</span>
+          <select
+            className="input"
+            value={categoryOfFixed(draft)}
+            onChange={(e) => patch({ category: e.target.value as Category })}
+          >
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <span className="field__hint">
+            おむつサブスクなら「子ども」、土地ローンなら「住まい」。記録はこのカテゴリに入り、固定費の印が付きます
+          </span>
+        </label>
+
         <div className="field">
           <span className="field__label">金額</span>
           <div className="choices">
@@ -545,7 +567,10 @@ const FixedEditor = ({ cost, isNew, onSave, onDelete, onCancel }: EditorProps) =
         )}
         <button
           className="btn btn--primary btn--grow"
-          onClick={() => onSave({ ...draft, name: draft.name.trim() })}
+          // カテゴリを触らずに保存した古いテンプレにも、推測したカテゴリを書き込んでおく
+          onClick={() =>
+            onSave({ ...draft, name: draft.name.trim(), category: categoryOfFixed(draft) })
+          }
           type="button"
           disabled={!draft.name.trim() || (draft.type === 'same' && draft.amount <= 0)}
         >

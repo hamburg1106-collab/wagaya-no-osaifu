@@ -1,4 +1,4 @@
-import { FIXED_BUCKET } from '../config'
+import { FIXED_LIKE_CATEGORIES } from '../config'
 import type { Bucket, Receipt } from '../types'
 import { thisMonth, todayKey } from './month'
 
@@ -19,19 +19,19 @@ import { thisMonth, todayKey } from './month'
  * 「その他」に落ちていた。件数は少なくても住宅ローンのように単価が大きいものが
  * 混ざるので、金額で見ると一気に崩れる。
  *
- * 通信・水道光熱・住まいは固定費にまとめる。このアプリではそれらを固定費として
- * 別枠で扱っているので、揃えないと推移が比べられなくなる。
+ * 住まい・水道光熱・通信は同じ名前のカテゴリへ入れ、固定費の印を付ける（toReceipts）。
+ * 以前は「固定費」という1つのカテゴリにまとめていたが、2026-10-01に固定費を印に変えた。
  */
 const CATEGORY_MAP: Record<string, Bucket> = {
   // 実物のCSVにあった名前
   食費: '食費',
   日用雑貨: '日用品',
   '教育・教養': '子ども',
-  クルマ: '交通',
-  '水道・光熱': FIXED_BUCKET,
-  住まい: FIXED_BUCKET,
+  クルマ: '車',
+  '水道・光熱': '水道光熱',
+  住まい: '住まい',
   '医療・保険': '医療・薬',
-  通信: FIXED_BUCKET,
+  通信: '通信',
   大型出費: 'その他',
   エンタメ: '娯楽・趣味',
   交際費: '交際費',
@@ -42,7 +42,7 @@ const CATEGORY_MAP: Record<string, Bucket> = {
   // Zaimの版や設定によって出うる別名。入れておいて損はない
   日用品: '日用品',
   交通: '交通',
-  自動車: '交通',
+  自動車: '車',
   '健康・医療': '医療・薬',
   '医療・健康': '医療・薬',
   '衣服・美容': '衣類',
@@ -51,9 +51,9 @@ const CATEGORY_MAP: Record<string, Bucket> = {
   子ども: '子ども',
   '税・社会保険': '税',
   固定資産税: '税',
-  自動車税: '税',
-  住宅: FIXED_BUCKET,
-  保険: FIXED_BUCKET,
+  自動車税: '車',
+  住宅: '住まい',
+  保険: 'その他',
 }
 
 /**
@@ -325,7 +325,12 @@ export const toReceipts = (months: MonthSummary[]): Receipt[] => {
       total: m.total,
       items: [...m.byBucket.entries()]
         .filter(([, amount]) => amount > 0)
-        .map(([category, amount]) => ({ category, amount: Math.round(amount) })),
+        .map(([category, amount]) => ({
+          category,
+          amount: Math.round(amount),
+          // 取り込みは月の合計しか無いので、記録ごとではなくカテゴリで固定費かを決める
+          ...(FIXED_LIKE_CATEGORIES.has(category) ? { fixed: true as const } : {}),
+        })),
       source: 'import' as const,
       createdAt: Date.now(),
     }

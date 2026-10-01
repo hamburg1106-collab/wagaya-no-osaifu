@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { buildForecast } from '../lib/forecast'
 import { formatMonth, thisMonth, yen } from '../lib/month'
-import type { IncomeSource, LifeEvent, Plan, Receipt } from '../types'
+import type { IncomeRecord, IncomeSource, LifeEvent, Plan, Receipt } from '../types'
 import { EventEditor } from './EventEditor'
 
 type Props = {
   receipts: Receipt[]
   income: IncomeSource[]
+  /** 鉛筆マークから記録した収入。売電の平均が見通しに足される */
+  incomeRecords: IncomeRecord[]
   events: LifeEvent[]
   plan: Plan
   onSaveEvent: (event: LifeEvent) => void
@@ -34,6 +36,7 @@ const newEvent = (): LifeEvent => ({
 export const OutlookScreen = ({
   receipts,
   income,
+  incomeRecords,
   events,
   plan,
   onSaveEvent,
@@ -43,7 +46,7 @@ export const OutlookScreen = ({
   const [includeUncertain, setIncludeUncertain] = useState(true)
   const [editing, setEditing] = useState<LifeEvent | null>(null)
 
-  const f = buildForecast(receipts, income, events, plan, includeUncertain)
+  const f = buildForecast(receipts, income, incomeRecords, events, plan, includeUncertain)
 
   // 前提が欠けたまま数字を出すと嘘になるので、揃うまでは出さない。
   // とくに支出が0のまま見通しを描くと、収入がまるごと余剰になって
@@ -107,6 +110,15 @@ export const OutlookScreen = ({
             <span className="row__store">収入</span>
             <span className="row__amount">{yen(f.monthlyIncome)}</span>
           </li>
+          {f.monthlySolar > 0 && (
+            <li className="row row--plain">
+              <span className="row__store">
+                売電
+                <span className="tag">実績{f.solarMonths}ヶ月の平均</span>
+              </span>
+              <span className="row__amount">{yen(f.monthlySolar)}</span>
+            </li>
+          )}
           <li className="row row--plain">
             <span className="row__store">
               支出

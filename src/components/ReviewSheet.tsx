@@ -13,6 +13,8 @@ type Props = {
   onSave: (receipt: Receipt, thenCamera: boolean) => void
   onDelete?: () => void
   onCancel: () => void
+  /** 鉛筆マークから開いた新規のときだけ。収入の入力に切り替える */
+  onSwitchToIncome?: () => void
 }
 
 const emptyReceipt = (): Receipt => ({
@@ -31,7 +33,14 @@ const emptyReceipt = (): Receipt => ({
  * レシート解析後の確認、履歴からの修正、レシートなしの手入力の3つを1つで賄う。
  * 専用の手入力画面を別に作らないのは、項目がまったく同じで二重管理になるため。
  */
-export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }: Props) => {
+export const ReviewSheet = ({
+  initial,
+  fromCamera,
+  onSave,
+  onDelete,
+  onCancel,
+  onSwitchToIncome,
+}: Props) => {
   const [start] = useState<Receipt>(() => initial ?? emptyReceipt())
   const [receipt, setReceipt] = useState<Receipt>(start)
 
@@ -103,6 +112,17 @@ export const ReviewSheet = ({ initial, fromCamera, onSave, onDelete, onCancel }:
       </header>
 
       <div className="sheet__body">
+        {onSwitchToIncome && (
+          <div className="choices choices--kind">
+            <button className="btn btn--primary" type="button" aria-pressed="true">
+              支出
+            </button>
+            <button className="btn btn--ghost" onClick={onSwitchToIncome} type="button">
+              収入
+            </button>
+          </div>
+        )}
+
         <label className="field">
           <span className="field__label">日付</span>
           <input
