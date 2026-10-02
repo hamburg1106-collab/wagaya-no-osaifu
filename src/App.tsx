@@ -256,12 +256,18 @@ const App = () => {
     if (!file) return
 
     setError(null)
-    setBusy('レシートを読み取っています…')
+    // 経過秒数を出す。黙って待たされるより短く感じるし、「遅い」がどのくらいかも分かる
+    const startedAt = Date.now()
+    let label = 'レシートを読み取っています…'
+    const show = () => setBusy(`${label}（${Math.floor((Date.now() - startedAt) / 1000)}秒）`)
+    show()
+    const timer = setInterval(show, 1000)
     try {
-      const parsed = await analyzeReceipt(await shrinkImage(file), apiKey, (attempt, total) =>
+      const parsed = await analyzeReceipt(await shrinkImage(file), apiKey, (attempt, total) => {
         // 混雑で粘っている最中。黙って数秒止まると壊れたように見える
-        setBusy(`混み合っています。もう一度試しています…（${attempt}/${total}）`),
-      )
+        label = `混み合っています。もう一度試しています…（${attempt}/${total}）`
+        show()
+      })
       setEditing({
         receipt: {
           id: crypto.randomUUID(),
@@ -279,11 +285,12 @@ const App = () => {
           : `読み取れませんでした（${err instanceof Error ? err.message : String(err)}）`,
       )
     } finally {
+      clearInterval(timer)
       setBusy(null)
     }
   }
 
-  const guard = (task: Promise<unknown>, what: string) =>
+  const guard =(task: Promise<unknown>, what: string) =>
     void task.catch((e: unknown) =>
       setError(`${what}できませんでした（${e instanceof Error ? e.message : String(e)}）`),
     )

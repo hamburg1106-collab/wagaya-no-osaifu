@@ -76,7 +76,18 @@ const BACKOFF_MS = [1500, 4000]
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-const callGemini = async (model: string, image: Shrunk, apiKey: string) =>
+/**
+ * 思考（答える前の推論）を最小にするか。
+ *
+ * Flash系は既定で思考してから答えるので、そのぶん数秒遅い。
+ * レシートの文字を読んでカテゴリに振り分けるだけなら思考はほぼ要らない（2026-10-02に「遅い」と言われた）。
+ *
+ * モデルの世代によって指定の書き方が違い、受け付けないと400が返る。
+ * そのときは指定を外して投げ直し、以後この起動中は指定しない。
+ */
+let lowThinking = true
+
+const callGemini = async (model: string, image: Shrunk, apiKey: string, thinkLess: boolean) =>
   fetch(`${ENDPOINT}/${model}:generateContent`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
@@ -92,6 +103,7 @@ const callGemini = async (model: string, image: Shrunk, apiKey: string) =>
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: RESPONSE_SCHEMA,
+        ...(thinkLess ? { thinkingConfig: { thinkingLevel: 'minimal' } } : {}),
       },
     }),
   })
@@ -130,7 +142,12 @@ export const analyzeReceipt = async (
 
     let res: Response
     try {
-      res = await callGemini(models[i], image, apiKey)
+      res = await callGemini(models[i], image, apiKey, lowThinking)
+      // 思考の指定を受け付けないモデルだった。指定を外して同じモデルで投げ直す
+      if (res.status === 400 && lowThinking) {
+        lowThinking = false
+        res = await callGemini(models[i], image, apiKey, false)
+      }
     } catch (e) {
       // 通信が切れた場合。これも待てば直ることがあるので同じ扱いにする
       lastMessage = e instanceof Error ? e.message : String(e)
