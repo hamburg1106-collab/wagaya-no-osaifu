@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { INCOME_KINDS, SOLAR } from '../config'
+import { INCOME_FORECAST, INCOME_KINDS } from '../config'
 import { useCloseOnBack } from '../lib/closeOnBack'
 import { formatDay } from '../lib/month'
 import type { IncomeRecord } from '../types'
@@ -100,9 +100,11 @@ export const IncomeSheet = ({
             ))}
           </div>
           <span className="field__hint">
-            {draft.kind === SOLAR
-              ? '毎月の平均が見通しに足されます'
-              : '見通しには入りません。決まった時期に入るものは「見通し」の予定に置いてください'}
+            {INCOME_FORECAST[draft.kind] === 'recent' && '毎月の平均が見通しに足されます'}
+            {INCOME_FORECAST[draft.kind] === 'yearly' &&
+              'まとめて入るので、直近12ヶ月の合計を12で割った額が見通しに足されます。何ヶ月ぶんかはメモに'}
+            {INCOME_FORECAST[draft.kind] === 'none' &&
+              '見通しには入りません。決まった時期に入るものは「見通し」の予定に置いてください'}
           </span>
         </div>
 

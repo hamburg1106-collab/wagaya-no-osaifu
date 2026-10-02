@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { INCOME_FORECAST } from '../config'
 import { buildForecast } from '../lib/forecast'
 import { formatMonth, thisMonth, yen } from '../lib/month'
 import type { IncomeRecord, IncomeSource, LifeEvent, Plan, Receipt } from '../types'
@@ -110,15 +111,19 @@ export const OutlookScreen = ({
             <span className="row__store">収入</span>
             <span className="row__amount">{yen(f.monthlyIncome)}</span>
           </li>
-          {f.monthlySolar > 0 && (
-            <li className="row row--plain">
+          {f.recordedIncome.map((r) => (
+            <li className="row row--plain" key={r.kind}>
               <span className="row__store">
-                売電
-                <span className="tag">実績{f.solarMonths}ヶ月の平均</span>
+                {r.kind}
+                <span className="tag">
+                  {INCOME_FORECAST[r.kind] === 'yearly'
+                    ? '直近12ヶ月の合計÷12'
+                    : `実績${r.months}ヶ月の平均`}
+                </span>
               </span>
-              <span className="row__amount">{yen(f.monthlySolar)}</span>
+              <span className="row__amount">{yen(r.amount)}</span>
             </li>
-          )}
+          ))}
           <li className="row row--plain">
             <span className="row__store">
               支出

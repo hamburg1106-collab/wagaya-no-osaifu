@@ -237,8 +237,10 @@ a.btn {
   gap: 8px;
 }
 
+/* 3つ並べても「018サポート」が1行に収まるよう、左右の余白は詰める */
 .choices .btn {
   flex: 1;
+  padding-inline: 6px;
 }
 
 /* 手入力の先頭にある「支出 | 収入」の切り替え */
@@ -809,10 +811,11 @@ a.btn {
   border-top: 1px solid var(--line);
 }
 
+/* 縦幅は片手の親指で押し損ねない程度に取る（14pxだと狭いと言われた） */
 .tabs__item {
   flex: 1;
-  padding: 14px 0;
-  font-size: 0.8rem;
+  padding: 20px 0;
+  font-size: 0.85rem;
   font-family: inherit;
   color: var(--muted);
   background: none;

@@ -1,5 +1,5 @@
-import { FORECAST_MONTHS, SOLAR } from '../config'
-import type { IncomeRecord, IncomeSource, LifeEvent, Plan, Receipt } from '../types'
+import { FORECAST_MONTHS, INCOME_FORECAST, INCOME_KINDS } from '../config'
+import type { IncomeKind, IncomeRecord, IncomeSource, LifeEvent, Plan, Receipt } from '../types'
 import { sumTotal } from './aggregate'
 import { monthOf, monthsBetween, shiftMonth, thisMonth, todayKey } from './month'
 
@@ -18,10 +18,8 @@ export type Forecast = {
   /** 初めて残高がマイナスになる月。最後まで持つなら null */
   shortfallMonth: string | null
   monthlyIncome: number
-  /** 売電の実績の月平均。記録が無ければ0 */
-  monthlySolar: number
-  /** 売電の平均に使った月数 */
-  solarMonths: number
+  /** 記録した収入（売電など）から出した月額。種類ごと。記録が無い種類は入らない */
+  recordedIncome: RecordedIncome[]
   monthlySpend: number
   monthlySurplus: number
   /** 支出に実績を使えたか。falseなら手置きの想定額を使っている */
@@ -74,26 +72,51 @@ const estimateSpend = (
   return { spend: Math.round(total / months.length), fromActual: true, months: months.length }
 }
 
+export type RecordedIncome = {
+  kind: IncomeKind
+  /** 見通しに足す月額 */
+  amount: number
+  /** 何ヶ月で割ったか */
+  months: number
+}
+
 /**
- * 売電の月平均を見積もる。
+ * 記録した収入（売電・018サポートなど）の月額を、種類ごとに見積もる。
  *
  * 支出と同じく今月は数えない（まだ入っていないだけの月を0として数えてしまうため）。
- * 支出と違って「記録がある月」ではなく「最初の記録から先月まで」の月数で割る。
- * 売電は2ヶ月に1回の入金のこともあり、入った月だけで割ると倍に見えるため。
+ * 支出と違って「記録がある月」の数では割らない。隔月やまとめ払いの入金を
+ * 入った月だけで割ると、毎月それだけ入るように見えて大きく出るため。
+ * 割る月数の決め方は種類ごとに config の INCOME_FORECAST にある。
  */
-const estimateSolar = (records: IncomeRecord[]): { solar: number; months: number } => {
+const estimateRecordedIncome = (records: IncomeRecord[]): RecordedIncome[] => {
   const current = thisMonth()
-  const past = records.filter((r) => r.kind === SOLAR && monthOf(r.date) < current)
-  if (past.length === 0) return { solar: 0, months: 0 }
-
-  const first = past.reduce((min, r) => (monthOf(r.date) < min ? monthOf(r.date) : min), current)
   const lastMonth = shiftMonth(current, -1)
-  const earliest = shiftMonth(lastMonth, -(LOOKBACK - 1))
-  const span = monthsBetween(first > earliest ? first : earliest, lastMonth)
-  const total = past
-    .filter((r) => span.includes(monthOf(r.date)))
-    .reduce((acc, r) => acc + r.amount, 0)
-  return { solar: Math.round(total / span.length), months: span.length }
+  const out: RecordedIncome[] = []
+
+  for (const kind of INCOME_KINDS) {
+    const method = INCOME_FORECAST[kind]
+    if (method === 'none') continue
+    const past = records.filter((r) => r.kind === kind && monthOf(r.date) < current)
+    if (past.length === 0) continue
+
+    let span: string[]
+    if (method === 'yearly') {
+      span = monthsBetween(shiftMonth(lastMonth, -11), lastMonth)
+    } else {
+      const first = past.reduce(
+        (min, r) => (monthOf(r.date) < min ? monthOf(r.date) : min),
+        current,
+      )
+      const earliest = shiftMonth(lastMonth, -(LOOKBACK - 1))
+      span = monthsBetween(first > earliest ? first : earliest, lastMonth)
+    }
+
+    const total = past
+      .filter((r) => span.includes(monthOf(r.date)))
+      .reduce((acc, r) => acc + r.amount, 0)
+    if (total > 0) out.push({ kind, amount: Math.round(total / span.length), months: span.length })
+  }
+  return out
 }
 
 /** 繰り返しの間隔（月数）。once は繰り返さない */
@@ -152,8 +175,9 @@ export const buildForecast = (
     .reduce((acc, i) => acc + Math.max(0, i.amount), 0)
 
   const { spend, fromActual, months: actualMonths } = estimateSpend(receipts, plan)
-  const { solar, months: solarMonths } = estimateSolar(incomeRecords)
-  const monthlySurplus = monthlyIncome + solar - spend
+  const recordedIncome = estimateRecordedIncome(incomeRecords)
+  const recorded = recordedIncome.reduce((acc, r) => acc + r.amount, 0)
+  const monthlySurplus = monthlyIncome + recorded - spend
 
   const used = events.filter((e) => includeUncertain || e.certain)
   const byMonth = new Map<string, LifeEvent[]>()
@@ -184,8 +208,7 @@ export const buildForecast = (
     points,
     shortfallMonth,
     monthlyIncome,
-    monthlySolar: solar,
-    solarMonths,
+    recordedIncome,
     monthlySpend: spend,
     monthlySurplus,
     spendFromActual: fromActual,
