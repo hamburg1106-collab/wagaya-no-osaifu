@@ -1,5 +1,6 @@
 import { HOUSEHOLD_ID } from '../config'
 import type {
+  BalanceCheck,
   Category,
   FixedCost,
   IncomeRecord,
@@ -221,6 +222,33 @@ export const saveIncomeRecord = async (record: IncomeRecord): Promise<void> => {
 export const deleteIncomeRecord = async (id: string): Promise<void> => {
   const bundle = await getFs()
   await bundle.fs.deleteDoc(bundle.fs.doc(col(bundle, 'incomeRecords'), id))
+}
+
+/* ---------- 残高の照合 ---------- */
+
+export const subscribeChecks = (
+  onChange: (list: BalanceCheck[]) => void,
+  onError: (error: Error) => void,
+) =>
+  subscribeAll<BalanceCheck>(
+    'checks',
+    (list) => list.slice().sort((a, b) => b.createdAt - a.createdAt),
+    onChange,
+    onError,
+  )
+
+/**
+ * 照合を確定する。記録を残し、見通しの起点（残高とその日付）も同じ値に置き換える。
+ * 2つを1回で書くので、片方だけ書かれて食い違うことがない。
+ */
+export const confirmCheck = async (check: BalanceCheck, plan: Plan): Promise<void> => {
+  const bundle = await getFs()
+  const { fs, db } = bundle
+  const batch = fs.writeBatch(db)
+  const { id, ...rest } = check
+  batch.set(fs.doc(col(bundle, 'checks'), id), rest)
+  batch.set(planRef(bundle), plan)
+  await batch.commit()
 }
 
 /* ---------- ライフイベント ---------- */

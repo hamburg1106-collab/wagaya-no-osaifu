@@ -8,6 +8,20 @@ export const APP_NAME = 'わが家のお財布'
  */
 export const HOUSEHOLD_ID = 'wagaya'
 
+/**
+ * 夫婦の拠出が家計口座に入る日（給料日）。残高の推定で、この日に「家計に入るお金」の合計を足す
+ */
+export const CONTRIBUTION_DAY = 15
+
+/**
+ * 照合のずれを「問題なし」とみなす幅。
+ * 財布の現金や、カードアプリへの反映が数日遅れるぶんは、この程度ずれる
+ */
+export const CHECK_TOLERANCE = 5000
+
+/** 前回の照合からこの日数が過ぎたら、ホームで照合を促す */
+export const CHECK_REMIND_DAYS = 35
+
 /** 見通しを何ヶ月先まで出すか */
 export const FORECAST_MONTHS = 60
 

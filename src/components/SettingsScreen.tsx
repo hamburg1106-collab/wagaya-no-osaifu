@@ -120,9 +120,8 @@ export const SettingsScreen = ({
       <section className="section">
         <h2 className="section__title">家計の貯蓄残高</h2>
         <p className="note">
-          見通しの起点になります。通帳を見て、ざっくりで構いません。
-          <br />
-          月に一度くらい直せば十分です。
+          見通しの起点になります。ふだんはホームの「通帳と照合する」で毎月更新されるので、
+          ここで直すのは照合を始める前だけで構いません。
         </p>
         <label className="field">
           <span className="field__label">いまの残高</span>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { FixedPrompt } from './components/FixedPrompt'
 import { HistoryScreen } from './components/HistoryScreen'
 import { HomeScreen } from './components/HomeScreen'
+import { CheckSheet } from './components/CheckSheet'
 import { ImportSheet } from './components/ImportSheet'
 import { IncomeSheet } from './components/IncomeSheet'
 import { LoginGate } from './components/LoginGate'
@@ -12,6 +13,7 @@ import { SettingsScreen } from './components/SettingsScreen'
 import { TrendScreen } from './components/TrendScreen'
 import { API_KEY_KEY, APP_NAME, TAB_KEY } from './config'
 import { watchUser } from './lib/auth'
+import { estimateBalance } from './lib/balance'
 import { categoryOfFixed, relabelLegacyFixed } from './lib/fixed'
 import { defaultPlan } from './lib/forecast'
 import { GeminiError, analyzeReceipt } from './lib/gemini'
@@ -20,6 +22,7 @@ import { monthOf, monthsBetween, thisMonth, todayKey } from './lib/month'
 import { readStorage, writeStorage } from './lib/storage'
 import { holdUpdate } from './lib/swUpdate'
 import {
+  confirmCheck,
   deleteEvent,
   deleteFixedCost,
   deleteImported,
@@ -34,6 +37,7 @@ import {
   savePlan,
   saveReceipt,
   saveReceipts,
+  subscribeChecks,
   subscribeEvents,
   subscribeFixedCosts,
   subscribeFixedLog,
@@ -43,6 +47,7 @@ import {
   subscribeReceipts,
 } from './lib/store'
 import type {
+  BalanceCheck,
   FixedCost,
   IncomeRecord,
   IncomeSource,
@@ -100,6 +105,8 @@ const App = () => {
   const [events, setEvents] = useState<LifeEvent[]>([])
   const [plan, setPlan] = useState<Plan | null>(null)
   const [incomeRecords, setIncomeRecords] = useState<IncomeRecord[]>([])
+  const [checks, setChecks] = useState<BalanceCheck[]>([])
+  const [checking, setChecking] = useState(false)
 
   const [editing, setEditing] = useState<Editing | null>(null)
   const [editingIncome, setEditingIncome] = useState<EditingIncome | null>(null)
@@ -136,6 +143,7 @@ const App = () => {
       subscribeEvents(setEvents, onStoreError),
       subscribePlan(setPlan, onStoreError),
       subscribeIncomeRecords(setIncomeRecords, onStoreError),
+      subscribeChecks(setChecks, onStoreError),
     ]
     return () => stop.forEach((fn) => fn())
   }, [user])
@@ -227,8 +235,10 @@ const App = () => {
 
   // 入力の途中で更新による読み込み直しが走ると、読み取った内容や打った金額が消える
   useEffect(() => {
-    holdUpdate(Boolean(editing || editingIncome || importing || busy || showFixedPrompt))
-  }, [editing, editingIncome, importing, busy, showFixedPrompt])
+    holdUpdate(
+      Boolean(editing || editingIncome || importing || checking || busy || showFixedPrompt),
+    )
+  }, [editing, editingIncome, importing, checking, busy, showFixedPrompt])
 
   const pickPhoto = () => {
     if (!apiKey) {
@@ -305,6 +315,7 @@ const App = () => {
   if (user === null) return <LoginGate />
 
   const currentPlan = plan ?? defaultPlan()
+  const balance = estimateBalance(currentPlan, income, incomeRecords, receipts)
 
   return (
     <div className="app">
@@ -317,6 +328,9 @@ const App = () => {
           <HomeScreen
             receipts={receipts}
             incomeRecords={incomeRecords}
+            balance={balance}
+            lastCheck={checks[0]?.date ?? null}
+            onOpenCheck={() => setChecking(true)}
             month={month}
             onMonthChange={setMonth}
             onOpen={(r) => setEditing({ receipt: r, fromCamera: false, isNew: false })}
@@ -461,6 +475,27 @@ const App = () => {
                 }
               : undefined
           }
+        />
+      )}
+
+      {checking && (
+        <CheckSheet
+          estimate={balance}
+          history={checks}
+          onConfirm={(check) => {
+            setChecking(false)
+            guard(
+              confirmCheck(check, {
+                ...currentPlan,
+                // 照合した残高が、そのまま見通しの起点になる
+                balance: check.bank - check.cardUnpaid,
+                balanceAsOf: check.date,
+                updatedAt: Date.now(),
+              }),
+              '照合を記録',
+            )
+          }}
+          onCancel={() => setChecking(false)}
         />
       )}
 

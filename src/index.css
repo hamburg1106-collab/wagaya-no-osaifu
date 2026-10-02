@@ -326,6 +326,53 @@ a.btn {
   letter-spacing: -0.02em;
 }
 
+/* ホームの一番上の残高。今月の支出より上位の情報なので、カードで区切る */
+.balance {
+  padding: 14px 16px 4px;
+  margin-bottom: 20px;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.balance__label {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.balance__amount {
+  margin: 2px 0 2px;
+  font-size: 1.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.balance__note {
+  margin: 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.balance .btn--block {
+  margin: 10px 0;
+}
+
+/* 照合画面の「内訳」。普段は畳んでおく */
+.details {
+  margin-top: 20px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* display を変えると開閉の▶が消えるので、高さは余白で取る */
+.details summary {
+  padding: 12px 0;
+  cursor: pointer;
+}
+
 /* 合計の下に添える「うち固定費」「収入」 */
 .total__sub {
   display: flex;

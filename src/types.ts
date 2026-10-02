@@ -113,6 +113,23 @@ export type LifeEvent = {
   note: string
 }
 
+/**
+ * 月1回の残高の照合。通帳とカードの明細を1件ずつ突き合わせる代わりに、残高だけを比べる。
+ * 確定すると「通帳残高 − カードの未払い」が次の起点（Plan.balance）になる。
+ */
+export type BalanceCheck = {
+  id: string
+  /** YYYY-MM-DD */
+  date: string
+  /** 通帳（家計口座）の残高 */
+  bank: number
+  /** カードの、まだ引き落とされていない利用額 */
+  cardUnpaid: number
+  /** アプリの記録から出した、あるはずの残高。初回は起点が無いので null */
+  expected: number | null
+  createdAt: number
+}
+
 /** 見通しの前提。1ドキュメントだけ */
 export type Plan = {
   /** 家計の貯蓄残高 */
