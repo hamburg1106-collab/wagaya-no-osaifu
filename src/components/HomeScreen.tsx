@@ -47,7 +47,9 @@ export const HomeScreen = ({
   const exclude = excludeFixed && canExclude
   const buckets = sumByBucket(ofMonth, exclude)
   const shown = exclude ? total - fixed : total
-  const recent = ofMonth.slice(0, RECENT_COUNT)
+  // 固定費は外す。月の初めに月末の日付で前もって計上されるので、新しい順に並べると
+  // いつも先頭に固まり、実際に使ったものが見えなくなる。固定費は合計の下と履歴で見られる
+  const recent = ofMonth.filter((r) => r.source !== 'fixed').slice(0, RECENT_COUNT)
   const income = incomeRecords
     .filter((r) => monthOf(r.date) === month)
     .reduce((acc, r) => acc + r.amount, 0)
@@ -127,10 +129,7 @@ export const HomeScreen = ({
               <li key={r.id}>
                 <button className="row" onClick={() => onOpen(r)} type="button">
                   <span className="row__date">{formatDay(r.date)}</span>
-                  <span className="row__store">
-                    {r.store}
-                    {r.source === 'fixed' && <span className="tag">固定費</span>}
-                  </span>
+                  <span className="row__store">{r.store}</span>
                   <span className="row__amount">{yen(sumTotal([r]))}</span>
                 </button>
               </li>
