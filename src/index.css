@@ -88,6 +88,11 @@ body {
   押すとカメラが起動してしまう。
 */
 .app {
+  /*
+    どこかの行がはみ出しても、ページが横に広がらないようにする保険。
+    hidden ではなく clip にする（hidden だと上部の見出しの sticky が効かなくなる）
+  */
+  overflow-x: clip;
   min-height: 100dvh;
   padding-bottom: calc(210px + env(safe-area-inset-bottom));
 }
@@ -694,6 +699,15 @@ a.btn {
 .row__main {
   flex: 1;
   min-width: 0;
+}
+
+/*
+  履歴では店名が .row__main の中に入る。そこはflexの子ではないので、
+  ブロックにしないと「…」で切れずにはみ出し、ページごと横に広がる
+  （カメラボタンが画面の外に押し出された）
+*/
+.row__main .row__store {
+  display: block;
 }
 
 .row__store {
